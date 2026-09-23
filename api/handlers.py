@@ -41,11 +41,11 @@ async def get_feed(
         )
         current = result.scalar_one_or_none()
 
+        if current is None or current.status != "Опубликован":
+            return RedirectResponse("/feed", status_code=302)
+
         if next:
-            nxt_rc = await _get_next_after(db, receipt_category_id) if current else None
-            receipt_category = nxt_rc or current or await _get_first_published(db)
-        elif not current or current.status != "Опубликован":
-            receipt_category = await _get_first_published(db)
+            receipt_category = await _get_next_after(db, receipt_category_id) or current
         else:
             receipt_category = current
 
