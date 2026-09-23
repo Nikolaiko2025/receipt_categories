@@ -2,3 +2,7 @@
 __pycache__
 .env
 /venv
+/readme.mg
+/readme1.mg
+/readme2.mg
+/alembic
