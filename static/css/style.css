@@ -713,6 +713,7 @@ line-height: 14px;
 color: #EF4444;
 cursor: pointer;
 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+pointer-events: auto;
 }
 
 /* Форма удаления не перехватывает hover у карточки */
@@ -776,4 +777,210 @@ top: 604px;
 background: #D9D9D9;
 opacity: 0.9;
 border-radius: 30px;
+}
+
+/* Форма публикации (шаг «Опубликовать») */
+.publish-form{
+    position: relative;
+    padding: 55px 0 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.publish-field-label{
+    width: 345px;
+    margin: 8px auto 4px;
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 16px;
+    color: #6B7280;
+}
+
+.publish-field{
+    box-sizing: border-box;
+    width: 345px;
+    height: 48px;
+    margin: 0 auto;
+    background: #F3F4F6;
+    border: none;
+    border-radius: 10px;
+    padding: 0 14px;
+    font-family: 'Inter';
+    font-style: normal;
+    font-size: 14px;
+    color: #1F2937;
+    outline: none;
+}
+
+.publish-field::placeholder{
+    color: #9CA3AF;
+}
+
+.publish-textarea{
+    height: 90px;
+    padding: 14px;
+    resize: none;
+}
+
+.publish-submit{
+    width: 345px;
+    height: 50px;
+    margin: 24px auto 0;
+    background: #2563EB;
+    border: none;
+    border-radius: 12px;
+    color: #FFFFFF;
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 600;
+    font-size: 16px;
+    line-height: 50px;
+    cursor: pointer;
+}
+
+/* Превью дефолтных фото/видео на странице публикации */
+.media-preview-row{
+    display: flex;
+    gap: 12px;
+    width: 345px;
+    margin: 0 auto 4px;
+}
+
+.media-preview{
+    width: calc(50% - 6px);
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    background: #F3F4F6;
+    border: 1.5px dashed #6B7280;
+    border-radius: 12px;
+}
+
+.media-preview-video{
+    background: #1F2937;
+}
+
+.publish-draft-baner{
+    width: 345px;
+    margin: 12px auto 6px;
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 15px;
+    color: #2563EB;
+    text-align: center;
+}
+
+.publish-field:disabled{
+    color: #6B7280;
+    cursor: not-allowed;
+}
+
+/* Форма добавления (два шага: медиа+название → публикация) */
+.content-area{
+    box-sizing: border-box;
+    padding: 54px 16px 24px;
+    display: flex;
+    flex-direction: column;
+}
+
+.content-area h2{
+    margin: 0 0 24px;
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 700;
+    font-size: 24px;
+    line-height: 29px;
+    color: #1F2937;
+}
+
+.add-form{
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.add-section{
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.drop-zone{
+    box-sizing: border-box;
+    flex: none;
+    width: 100%;
+    height: 110px;
+    display: grid;
+    place-items: center;
+    border: 1.5px dashed #6B7280;
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 16px;
+    text-align: center;
+    color: #6B7280;
+}
+
+.drop-zone input{
+    display: none;
+}
+
+.add-section > p{
+    margin: 0;
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 16px;
+    color: #6B7280;
+}
+
+.add-section > input,
+.add-section > textarea{
+    box-sizing: border-box;
+    width: 100%;
+    background: #F3F4F6;
+    border: none;
+    border-radius: 10px;
+    padding: 0 14px;
+    font-family: 'Inter';
+    font-style: normal;
+    font-size: 14px;
+    color: #1F2937;
+    outline: none;
+}
+
+.add-section > input{
+    height: 48px;
+}
+
+.add-section > textarea{
+    padding: 14px;
+    resize: none;
+}
+
+.add-section > input::placeholder,
+.add-section > textarea::placeholder{
+    color: #9CA3AF;
+}
+
+.btn{
+    width: 100%;
+    height: 50px;
+    background: #2563EB;
+    border: none;
+    border-radius: 12px;
+    color: #FFFFFF;
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 600;
+    font-size: 16px;
+    line-height: 50px;
+    cursor: pointer;
 }

@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <title>Плитка</title>
-        <link rel="stylesheet" href="/static/css/style.css?v=4">
+        <link rel="stylesheet" href="/static/css/style.css?v=5">
     </head>
     <body>
         <div class="app-container">
@@ -53,15 +53,13 @@
                             <div class="grid-card-wrap">
                             <a href="/feed/{{ receipt_category.id_receipt_category }}" class="grid-card">
                                 <div class="card-image">
-                                    {% if receipt_category.image_url %}
-                                        <img src="{{ receipt_category.image_url }}" alt="{{ receipt_category.title }}">
-                                    {% else %}
-                                        <div class="card-image-placeholder">🖼️</div>
-                                    {% endif %}
+                                    <img src="{{ receipt_category.image_url or default_image_url }}"
+                                         onerror="this.onerror=null; this.src='{{ default_image_url }}'"
+                                         alt="{{ receipt_category.title }}">
                                 </div>
                                 <div class="card-content">
                                     <h3 class="card-title">{{ receipt_category.title }}</h3>
-                                    <div class="card-amount {% if receipt_category.type == 'income' %}positive{% else %}negative{% endif %}">
+                                    <div class="card-amount {% if receipt_category.amount is not none and receipt_category.amount >= 0 %}positive{% else %}negative{% endif %}">
                                         {{ receipt_category.amount|int }} ₽
                                     </div>
                                     <div class="card-footer">

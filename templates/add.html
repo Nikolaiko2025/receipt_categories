@@ -28,22 +28,41 @@
             </div>
 
             <main class="main-add">
-                   <h1 class="page-title">Новая заявка</h1>
-                   
-                    <label class="upload-img" for="image-input">
-                    <span>🖼️ Изображение</span>
-                    </label>
-                    <input type="file" id="image-input" accept="image/*" style="display:none">
-                    <label class="upload-video" for="video-input">
-                    <span>🎬 Видео</span>
-                    </label>
-                    <input type="file" id="video-input" accept="video/*" style="display:none">
-
-                    <label class="label-add3">Название</label>
-                    <input type="text" class="form-control-sum" name="title" placeholder="Введите название">
-
-                    <button type="submit" class="btn-next">Далее</button>
-                </main>
+                <div class="content-area">
+                    <h2>Новая операция</h2>
+                    {% if has_draft %}
+                    <form action="/publish" method="POST" class="add-form">
+                        <div class="add-section">
+                            <p>Сумма (₽)</p>
+                            <input type="text" name="amount" value="{{ draft.amount if draft.amount is not none else '' }}" placeholder="Сумма">
+                            <p>Дата</p>
+                            <input type="date" name="date" value="{{ draft.date if draft.date else '' }}">
+                            <p>Описание</p>
+                            <textarea name="description" rows="4" placeholder="Описание">{{ draft.description or '' }}</textarea>
+                        </div>
+                        <button type="submit" class="btn">Опубликовать</button>
+                    </form>
+                    {% else %}
+                    <form action="/add" method="POST" class="add-form">
+                        <div class="add-section">
+                            <label class="drop-zone">
+                                <input type="file" name="image" accept="image/*">
+                                <span>📷<br>Изображение</span>
+                            </label>
+                            <label class="drop-zone">
+                                <input type="file" name="video" accept="video/*">
+                                <span>🎥<br>Видео</span>
+                            </label>
+                        </div>
+                        <div class="add-section">
+                            <p>Название</p>
+                            <input type="text" name="title" placeholder="Название операции">
+                        </div>
+                        <button type="submit" class="btn">Далее</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </main>
 
             <nav class="bottom-nav">
             <a href="/feed" class="nav-item-feed">

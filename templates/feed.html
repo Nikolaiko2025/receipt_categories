@@ -28,22 +28,28 @@
             </div>
 
             <main class="main-context">
-                {% for receipt_category in receipt_categories[:1] %}
-                    <video class="video" autoplay loop muted playsinline>
-                        <source src="{{ receipt_category.video_url }}" type="video/mp4">
-                    </video>
-                {% endfor %}
-                <div class="container-description1">
-                <div class="heart">
-                    <p>❤️ {{ receipt_categories[0].likes|length }}</p>
+                {% if receipt_categories %}
+                    {% set rc = receipt_categories[0] %}
+                    <video class="video" src="{{ rc.video_url or default_video_url }}"
+                           onerror="this.onerror=null; this.src='{{ default_video_url }}'"
+                           autoplay loop muted playsinline></video>
+                    <div class="container-description1">
+                    <div class="heart">
+                        <p>❤️ {{ rc.likes|length }}</p>
+                    </div>
+                        <h2 class="receipt-category-title">{{ rc.title }}</h2>
+                        <p class="receipt-category-description">{{ rc.description }}</p>
+                        <div class="show-more">Показать ещё</div>
+                    <a href="/feed/{{ rc.id_receipt_category }}?next=true" class="next-button">
+                        >
+                    </a>
                 </div>
-                    <h2 class="receipt-category-title">{{ receipt_categories[0].title }}</h2>
-                    <p class="receipt-category-description">{{ receipt_categories[0].description }}</p>
-                    <div class="show-more">Показать ещё</div>
-                <a href="/feed/{{ receipt_categories[0].id_receipt_category }}?next=true" class="next-button">
-                    >
-                </a>
-            </div>
+                {% else %}
+                    <div class="empty-state full-width">
+                        <h3>Нет опубликованных услуг</h3>
+                        <p>Создайте услугу в разделе «Добавление»</p>
+                    </div>
+                {% endif %}
             </main>
 
 
