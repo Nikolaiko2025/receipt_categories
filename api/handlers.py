@@ -52,7 +52,7 @@ async def get_feed(
     if not receipt_category:
         return templates.TemplateResponse(
             request=request,
-            name="feed.html",
+            name="receipt_categories_feed.html",
             context={"receipt_categories": [], "active_tab": "feed"}
         )
 
@@ -60,7 +60,7 @@ async def get_feed(
 
     return templates.TemplateResponse(
         request=request,
-        name="feed.html",
+        name="receipt_categories_feed.html",
         context={
             "receipt_categories": [receipt_category],
             "next_receipt_category": next_rc,
@@ -83,7 +83,7 @@ async def get_add(request: Request, db: AsyncSession = Depends(get_db)):
 
     return templates.TemplateResponse(
         request=request,
-        name="add.html",
+        name="receipt_categories_add.html",
         context={
             "draft": draft,
             "has_draft": draft is not None,
@@ -181,13 +181,6 @@ async def get_grid(request: Request, search: str = "", db: AsyncSession = Depend
 
     filter_options = [
         {"value": "", "label": "Все"},
-        {"value": ";-500000", "label": "до -500 000"},
-        {"value": "-500000;-200000", "label": "от -500 000 до -200 000"},
-        {"value": "-200000;0", "label": "от -200 000 до 0"},
-        {"value": "0;200000", "label": "от 0 до 200 000"},
-        {"value": "200000;500000", "label": "от 200 000 до 500 000"},
-        {"value": "500000;1000000", "label": "от 500 000 до 1 000 000"},
-        {"value": "1000000;", "label": "от 1 000 000"},
     ]
     for opt in filter_options:
         opt["selected"] = search == opt["value"]
@@ -198,7 +191,7 @@ async def get_grid(request: Request, search: str = "", db: AsyncSession = Depend
 
     return templates.TemplateResponse(
         request=request,
-        name="grid.html",
+        name="receipt_categories_grid.html",
         context={
             "receipt_categories": receipt_categories,
             "search": search,
