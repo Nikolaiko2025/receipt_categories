@@ -98,8 +98,57 @@ align-items: center;
 justify-content: center;
 text-decoration: none;
 color: #FFFFFF;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.feed-meta{
+position: absolute;
+right: 4px;
+top: 520px;
+display: flex;
+flex-direction: column;
+align-items: flex-end;
+gap: 2px;
+text-align: right;
+font-family: 'Inter';
+background: rgba(217, 217, 217, 0.9);
+border-radius: 30px;
+padding: 10px 14px;
+}
+
+.feed-amount{
+font-style: normal;
+font-weight: 700;
 font-size: 18px;
-line-height: 1;
+line-height: 22px;
+max-width: 120px;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+
+.feed-amount.positive{
+color: #22C55E;
+}
+
+.feed-amount.negative{
+color: #EF4444;
+}
+
+.feed-category{
+max-width: 110px;
+box-sizing: border-box;
+background: #F3F4F6;
+padding: 3px 10px;
+border-radius: 12px;
+font-weight: 500;
+font-size: 15px;
+line-height: 18px;
+color: #6B7280;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
 }
 
 .nav-item-feed{

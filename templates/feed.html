@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <title>Лента</title>
-        <link rel="stylesheet" href="/static/css/style.css?v=4">
+        <link rel="stylesheet" href="/static/css/style.css?v=5">
     </head>
     <body>
         <div class="app-container">
@@ -33,6 +33,10 @@
                     <video class="video" src="{{ rc.video_url or default_video_url }}"
                            onerror="this.onerror=null; this.src='{{ default_video_url }}'"
                            autoplay loop muted playsinline></video>
+                    <div class="feed-meta">
+                        <span class="feed-category">{{ rc.category_display }}</span>
+                        <span class="feed-amount {% if rc.amount is not none and rc.amount >= 0 %}positive{% else %}negative{% endif %}">{% if rc.amount is not none %}{{ rc.amount|int }} ₽{% endif %}</span>
+                    </div>
                     <div class="container-description1">
                     <div class="heart">
                         <p>❤️ {{ rc.likes|length }}</p>
