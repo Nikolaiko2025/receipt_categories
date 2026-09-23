@@ -39,35 +39,10 @@
                     </label>
                     <input type="file" id="video-input" accept="video/*" style="display:none">
 
-                    <label class="label-add1">Тип операции</laber>
+                    <label class="label-add3">Название</label>
+                    <input type="text" class="form-control-sum" name="title" placeholder="Введите название">
 
-                    <div class="toggle-container">
-                        <input type="radio" name="op_type" id="type-income" class="type-radio" checked>
-                        <input type="radio" name="op_type" id="type-expense" class="type-radio">
-                        <div class="active-toggle" id="type-thumb"></div>
-                        <label for="type-income" class="span-1">Поступление</label>
-                        <label for="type-expense" class="span-2">Выплата</label>
-                    </div>
-
-                    <label class="label-add2">Категория</laber>
-                    <select class="form-control">
-                    <option value="debit" {% if draft and draft.category == 'debit' %}selected{% endif %}>Дебиторка</option>
-                    <option value="sales" {% if draft and draft.category == 'sales' %}selected{% endif %}>Продажи</option>
-                    <option value="credit" {% if draft and draft.category == 'credit' %}selected{% endif %}>Кредит</option>
-                    <option value="salary" {% if draft and draft.category == 'salary' %}selected{% endif %}>Зарплата</option>
-                    <option value="suppliers" {% if draft and draft.category == 'suppliers' %}selected{% endif %}>Поставщики</option>
-                    </select>
-
-                    <label class="label-add3">Сумма (₽)</label>
-                    <input type="number" class="form-control-sum" value="{{ draft.amount|int if draft else '' }}" placeholder="Введите сумму">
-                    
-                    <label class="label-add4">Дата</label>
-                    <input type="date" class="form-control-date" value="{{ draft.date if draft else '' }}">
-                    
-                    <label class="label-add5">Описание</label>
-                    <textarea class="form-control-desc" placeholder="Введите описание">{{ draft.description if draft else '' }}</textarea>
-                
-                    <button type="submit" class="btn-save" disabled>Сохранить</button>
+                    <button type="submit" class="btn-next">Далее</button>
                 </main>
 
             <nav class="bottom-nav">

@@ -1,4 +1,4 @@
-operations_db = [
+receipt_categories_db = [
     {
         "id": 1,
         "title": "Оплата по дебиторке",
@@ -101,20 +101,20 @@ operations_db = [
 
 
 def get_published():
-    return [op for op in operations_db if op["status"] == "Опубликован"]
+    return [rc for rc in receipt_categories_db if rc["status"] == "Опубликован"]
 
 
-def get_by_id(operation_id: int):
-    for op in operations_db:
-        if op["id"] == operation_id:
-            return op
+def get_by_id(receipt_category_id: int):
+    for rc in receipt_categories_db:
+        if rc["id"] == receipt_category_id:
+            return rc
     return None
 
 
-def get_next_after(operation_id: int):
+def get_next_after(receipt_category_id: int):
     published = get_published()
-    for i, op in enumerate(published):
-        if op["id"] == operation_id:
+    for i, rc in enumerate(published):
+        if rc["id"] == receipt_category_id:
             if i + 1 < len(published):
                 return published[i + 1]
             return None

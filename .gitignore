@@ -1,2 +1,4 @@
 /balance_forecast
 __pycache__
+.env
+/venv

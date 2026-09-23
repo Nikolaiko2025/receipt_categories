@@ -361,8 +361,8 @@ border-radius: 10px;
 position: absolute;
 width: 67px;
 height: 16px;
-left: 1px;
-top: 78px;
+left: 17px;
+top: 300px;
 font-family: 'Inter';
 font-style: normal;
 font-weight: 500;
@@ -373,10 +373,10 @@ color: #6B7280;
 
 .form-control-sum{
 position: absolute;
-width: 342px;
+width: 345px;
 height: 48px;
-left: 1px;
-top: 100px;
+left: 16px;
+top: 320px;
 background: #F3F4F6;
 border-radius: 10px;
 }
@@ -447,6 +447,23 @@ border-radius: 12px;
 color: white;
 }
 
+.btn-next{
+position: absolute;
+width: 350px;
+height: 50px;
+left: 16px;
+top: 390px;
+background: #2563EB;
+border-radius: 12px;
+color: white;
+border: none;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 16px;
+line-height: 50px;
+}
+
 .input-filter{
 position: absolute;
 width: 345px;
@@ -457,16 +474,125 @@ background: #F3F4F6;
 border-radius: 10px;
 }
 
-.operations-grid{
+.filter-form{
+position: relative;
+width: 345px;
+margin: 60px auto 0 16px;
+}
+
+.filter-select{
+position: relative;
+width: 345px;
+}
+
+.filter-select summary{
+width: 360px;
+height: 44px;
+background: #F3F4F6;
+border: none;
+border-radius: 10px;
+padding: 0 12px;
+box-sizing: border-box;
+display: flex;
+align-items: center;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 16px;
+color: #1F2937;
+cursor: pointer;
+list-style: none;
+}
+
+.filter-select summary::-webkit-details-marker{
+display: none;
+}
+
+.filter-options{
+position: absolute;
+z-index: 10;
+top: 48px;
+left: 0;
+width: 360px;
+background: #FFFFFF;
+border-radius: 10px;
+box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+padding: 8px 0;
+}
+
+.filter-option{
+display: flex;
+align-items: center;
+gap: 8px;
+padding: 10px 12px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 500;
+font-size: 13px;
+line-height: 16px;
+color: #1F2937;
+cursor: pointer;
+}
+
+.filter-option input{
+display: none;
+}
+
+.checkmark{
+width: 16px;
+height: 16px;
+border: 1.5px solid #6B7280;
+border-radius: 4px;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+flex: none;
+}
+
+.filter-option input:checked ~ .checkmark{
+background: #2563EB;
+border-color: #2563EB;
+}
+
+.filter-option input:checked ~ .checkmark::after{
+content: '✓';
+color: #FFFFFF;
+font-size: 12px;
+line-height: 1;
+}
+
+.filter-submit{
+width: 360px;
+height: 40px;
+margin-top: 8px;
+background: #2563EB;
+border: none;
+border-radius: 10px;
+color: #FFFFFF;
+font-family: 'Inter';
+font-size: 14px;
+font-weight: 600;
+cursor: pointer;
+}
+
+.receipt-categories-grid{
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
     padding: 12px;
-    margin-top: 100px;
+    margin-top: 12px;
 }
 
 /* Карточка */
+.grid-card-wrap {
+    position: relative;
+    flex: 0 1 calc(50% - 6px);
+    min-width: 0;
+}
+
 .grid-card {
+    display: block;
     background: #FFFFFF;
     border-radius: 16px;
     overflow: hidden;
@@ -474,8 +600,7 @@ border-radius: 10px;
     color: #1F2937;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
     transition: all 0.2s;
-    flex: 0 1 calc(50% - 6px);
-    min-width: 0;
+    width: 100%;
 }
 
 /* Hover эффект */
@@ -572,12 +697,35 @@ border-radius: 10px;
     gap: 4px;
 }
 
+.delete-btn{
+position: absolute;
+top: 8px;
+right: 8px;
+background: rgba(255, 255, 255, 0.92);
+border: none;
+border-radius: 999px;
+padding: 4px 10px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 600;
+font-size: 11px;
+line-height: 14px;
+color: #EF4444;
+cursor: pointer;
+box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Форма удаления не перехватывает hover у карточки */
+.grid-card-wrap form {
+    pointer-events: none;
+}
+
 /* Пустое состояние */
 .empty-state.full-width {
     grid-column: 1 / -1;
 }
 
-.operation-title{
+.receipt-category-title{
 position: absolute;
 width: 300px;
 height: 24px;
@@ -591,7 +739,7 @@ line-height: 24px;
 color: #000000;
 }
 
-.operation-description{
+.receipt-category-description{
 position: absolute;
 width: 301px;
 height: 63px;

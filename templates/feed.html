@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <title>Лента</title>
-        <link rel="stylesheet" href="/static/css/style.css?v=2">
+        <link rel="stylesheet" href="/static/css/style.css?v=4">
     </head>
     <body>
         <div class="app-container">
@@ -28,19 +28,19 @@
             </div>
 
             <main class="main-context">
-                {% for operation in operations[:1] %}
+                {% for receipt_category in receipt_categories[:1] %}
                     <video class="video" autoplay loop muted playsinline>
-                        <source src="{{ operation.video_url }}" type="video/mp4">
+                        <source src="{{ receipt_category.video_url }}" type="video/mp4">
                     </video>
                 {% endfor %}
                 <div class="container-description1">
                 <div class="heart">
-                    <p>❤️ {{ operations[0].likes|length }}</p>
+                    <p>❤️ {{ receipt_categories[0].likes|length }}</p>
                 </div>
-                    <h2 class="operation-title">{{ operations[0].title }}</h2>
-                    <p class="operation-description">{{ operations[0].description }}</p>
+                    <h2 class="receipt-category-title">{{ receipt_categories[0].title }}</h2>
+                    <p class="receipt-category-description">{{ receipt_categories[0].description }}</p>
                     <div class="show-more">Показать ещё</div>
-                <a href="/feed/{{ operations[0].id }}?next=true" class="next-button">
+                <a href="/feed/{{ receipt_categories[0].id_receipt_category }}?next=true" class="next-button">
                     >
                 </a>
             </div>

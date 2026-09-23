@@ -18,7 +18,7 @@ services:
     environment:
       POSTGRES_USER: Nikolai
       POSTGRES_PASSWORD: Kolupaev
-      POSTGRES_DB: balance_forecast
+      POSTGRES_DB: receipt_categories
     ports:
       - "5433:5432"
     volumes:
