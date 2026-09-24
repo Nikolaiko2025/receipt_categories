@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
@@ -159,32 +159,24 @@ async def post_publish(
 
 
 @router.get("/grid")
-async def get_grid(request: Request, search: str = "", db: AsyncSession = Depends(get_db)):
-    """Страница плитки со списком всех опубликованных чеков"""
-    stmt = select(Receipt_categories).options(selectinload(Receipt_categories.likes)).where(Receipt_categories.status == "Опубликован")
+async def get_grid(request: Request, expense: bool = False, db: AsyncSession = Depends(get_db)):
+    """Плитка опубликованных чеков. Фильтр по сумме одной галочкой:
+    снята — Поступление (amount >= 0), отмечена — Выплата (amount < 0)."""
+    stmt = (
+        select(Receipt_categories)
+        .options(selectinload(Receipt_categories.likes))
+        .where(Receipt_categories.status == "Опубликован")
+    )
 
-    if search:
-        parts = search.split(";")
-        if len(parts) == 2:
-            try:
-                if parts[0] == "" and parts[1] != "":
-                    stmt = stmt.where(Receipt_categories.amount <= float(parts[1]))
-                elif parts[1] == "" and parts[0] != "":
-                    stmt = stmt.where(Receipt_categories.amount >= float(parts[0]))
-                elif parts[0] != "" and parts[1] != "":
-                    stmt = stmt.where(
-                        Receipt_categories.amount >= float(parts[0]),
-                        Receipt_categories.amount <= float(parts[1]),
-                    )
-            except ValueError:
-                pass
-
-    filter_options = [
-        {"value": "", "label": "Все"},
-    ]
-    for opt in filter_options:
-        opt["selected"] = search == opt["value"]
-    filter_label = next((opt["label"] for opt in filter_options if opt["selected"]), "Все")
+    if expense:
+        stmt = stmt.where(
+            or_(
+                Receipt_categories.amount < 0,
+                Receipt_categories.amount.is_(None),
+            )
+        )
+    else:
+        stmt = stmt.where(Receipt_categories.amount >= 0)
 
     result = await db.execute(stmt)
     receipt_categories = result.scalars().all()
@@ -194,9 +186,7 @@ async def get_grid(request: Request, search: str = "", db: AsyncSession = Depend
         name="receipt_categories_grid.html",
         context={
             "receipt_categories": receipt_categories,
-            "search": search,
-            "filter_options": filter_options,
-            "filter_label": filter_label,
+            "expense": expense,
             "active_tab": "grid"
         }
     )

@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <title>Плитка</title>
-        <link rel="stylesheet" href="/static/css/style.css?v=5">
+        <link rel="stylesheet" href="/static/css/style.css?v=6">
     </head>
     <body>
         <div class="app-container">
@@ -31,18 +31,12 @@
                 <h1 class="page-title">Все операции</h1>
                 
                     <form action="/grid" method="get" class="filter-form">
-                        <details class="filter-select">
-                            <summary>{{ filter_label }}</summary>
-                            <div class="filter-options">
-                                {% for opt in filter_options %}
-                                <label class="filter-option">
-                                    <input type="radio" name="search" value="{{ opt.value }}" {% if opt.selected %}checked{% endif %}>
-                                    <span class="checkmark"></span>
-                                    {{ opt.label }}
-                                </label>
-                                {% endfor %}
-                            </div>
-                        </details>
+                        <label class="filter-check">
+                            <input type="checkbox" name="expense" value="1" {% if expense %}checked{% endif %}>
+                            <span class="checkmark"></span>
+                            <span class="filter-check-income">Поступление</span>
+                            <span class="filter-check-expense">Выплата</span>
+                        </label>
                         <button type="submit" class="filter-submit">Применить</button>
                     </form>
             
@@ -99,12 +93,5 @@
             </nav>
 
         </div>
-        <script>
-            document.querySelectorAll('.filter-option input').forEach(function (radio) {
-                radio.addEventListener('change', function () {
-                    this.closest('details').removeAttribute('open');
-                });
-            });
-        </script>
     </body>
 </html>

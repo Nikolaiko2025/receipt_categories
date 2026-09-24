@@ -529,52 +529,16 @@ width: 345px;
 margin: 60px auto 0 16px;
 }
 
-.filter-select{
-position: relative;
-width: 345px;
-}
-
-.filter-select summary{
-width: 360px;
-height: 44px;
-background: #F3F4F6;
-border: none;
-border-radius: 10px;
-padding: 0 12px;
+.filter-check{
+display: flex;
+align-items: center;
+gap: 10px;
 box-sizing: border-box;
-display: flex;
-align-items: center;
-font-family: 'Inter';
-font-style: normal;
-font-weight: 500;
-font-size: 13px;
-line-height: 16px;
-color: #1F2937;
-cursor: pointer;
-list-style: none;
-}
-
-.filter-select summary::-webkit-details-marker{
-display: none;
-}
-
-.filter-options{
-position: absolute;
-z-index: 10;
-top: 48px;
-left: 0;
-width: 360px;
-background: #FFFFFF;
+width: 345px;
+height: 44px;
+padding: 0 12px;
+background: #F3F4F6;
 border-radius: 10px;
-box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-padding: 8px 0;
-}
-
-.filter-option{
-display: flex;
-align-items: center;
-gap: 8px;
-padding: 10px 12px;
 font-family: 'Inter';
 font-style: normal;
 font-weight: 500;
@@ -584,7 +548,7 @@ color: #1F2937;
 cursor: pointer;
 }
 
-.filter-option input{
+.filter-check input{
 display: none;
 }
 
@@ -599,20 +563,32 @@ justify-content: center;
 flex: none;
 }
 
-.filter-option input:checked ~ .checkmark{
+.filter-check input:checked ~ .checkmark{
 background: #2563EB;
 border-color: #2563EB;
 }
 
-.filter-option input:checked ~ .checkmark::after{
+.filter-check input:checked ~ .checkmark::after{
 content: '✓';
 color: #FFFFFF;
 font-size: 12px;
 line-height: 1;
 }
 
+.filter-check-expense{
+display: none;
+}
+
+.filter-check input:checked ~ .filter-check-expense{
+display: inline;
+}
+
+.filter-check input:checked ~ .filter-check-income{
+display: none;
+}
+
 .filter-submit{
-width: 360px;
+width: 345px;
 height: 40px;
 margin-top: 8px;
 background: #2563EB;
