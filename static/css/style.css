@@ -512,52 +512,16 @@ width: 345px;
 margin: 60px auto 0 20px;
 }
 
-.filter-select{
-position: relative;
+.type-filter{
+display: flex;
+align-items: center;
+gap: 10px;
 width: 345px;
-}
-
-.filter-select summary{
-width: 360px;
 height: 44px;
-background: #F3F4F6;
-border: none;
-border-radius: 10px;
 padding: 0 12px;
 box-sizing: border-box;
-display: flex;
-align-items: center;
-font-family: 'Inter';
-font-style: normal;
-font-weight: 500;
-font-size: 13px;
-line-height: 16px;
-color: #1F2937;
-cursor: pointer;
-list-style: none;
-}
-
-.filter-select summary::-webkit-details-marker{
-display: none;
-}
-
-.filter-options{
-position: absolute;
-z-index: 10;
-top: 48px;
-left: 0;
-width: 360px;
-background: #FFFFFF;
+background: #F3F4F6;
 border-radius: 10px;
-box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-padding: 8px 0;
-}
-
-.filter-option{
-display: flex;
-align-items: center;
-gap: 8px;
-padding: 10px 12px;
 font-family: 'Inter';
 font-style: normal;
 font-weight: 500;
@@ -565,10 +529,15 @@ font-size: 13px;
 line-height: 16px;
 color: #1F2937;
 cursor: pointer;
+user-select: none;
 }
 
-.filter-option input{
-display: none;
+.type-filter input{
+position: absolute;
+width: 1px;
+height: 1px;
+opacity: 0;
+pointer-events: none;
 }
 
 .checkmark{
@@ -580,32 +549,26 @@ display: inline-flex;
 align-items: center;
 justify-content: center;
 flex: none;
+background: #FFFFFF;
+box-sizing: border-box;
+transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.filter-option input:checked ~ .checkmark{
-background: #2563EB;
-border-color: #2563EB;
+.type-filter input:checked ~ .checkmark{
+background: #FFFFFF;
+border-color: #1F2937;
 }
 
-.filter-option input:checked ~ .checkmark::after{
+.type-filter input:checked ~ .checkmark::after{
 content: '✓';
-color: #FFFFFF;
+color: #1F2937;
 font-size: 12px;
 line-height: 1;
 }
 
-.filter-submit{
-width: 360px;
-height: 40px;
-margin-top: 8px;
-background: #2563EB;
-border: none;
-border-radius: 10px;
-color: #FFFFFF;
-font-family: 'Inter';
-font-size: 14px;
-font-weight: 600;
-cursor: pointer;
+.type-filter input:focus-visible ~ .checkmark{
+outline: 2px solid #1F2937;
+outline-offset: 2px;
 }
 
 .receipt-categories-grid{

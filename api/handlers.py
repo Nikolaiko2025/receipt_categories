@@ -1,18 +1,10 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from data.collections import receipt_categories, get_published, get_by_id, get_next_after
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
-
-AMOUNT_RANGES = [
-    {"value": "amt:btw:-500000:-200000", "label": "от −500 000 до −200 000"},
-    {"value": "amt:btw:-200000:0", "label": "от −200 000 до 0"},
-    {"value": "amt:lt:500000", "label": "До 500 000 ₽"},
-    {"value": "amt:btw:500000:1000000", "label": "500 000 – 1 000 000 ₽"},
-    {"value": "amt:gt:1000000", "label": "Более 1 000 000 ₽"},
-]
 
 
 @router.get("/")
@@ -27,7 +19,7 @@ def get_feed(request: Request):
     if not published:
         return templates.TemplateResponse(
             request=request,
-            name="feed.html",
+            name="receipt_categories_feed.html",
             context={"receipt_categories": [], "active_tab": "feed"}
         )
     
@@ -36,7 +28,7 @@ def get_feed(request: Request):
     
     return templates.TemplateResponse(
         request=request,
-        name="feed.html",
+        name="receipt_categories_feed.html",
         context={
             "receipt_categories": [first_rc],
             "next_rc": next_rc,
@@ -66,7 +58,7 @@ def get_feed_by_id(request: Request, receipt_category_id: int, next: bool = Fals
     if not rc:
         return templates.TemplateResponse(
             request=request,
-            name="feed.html",
+            name="receipt_categories_feed.html",
             context={"receipt_categories": [], "active_tab": "feed"}
         )
     
@@ -74,7 +66,7 @@ def get_feed_by_id(request: Request, receipt_category_id: int, next: bool = Fals
     
     return templates.TemplateResponse(
         request=request,
-        name="feed.html",
+        name="receipt_categories_feed.html",
         context={
             "receipt_categories": [rc],
             "next_rc": next_rc,
@@ -86,43 +78,22 @@ def get_feed_by_id(request: Request, receipt_category_id: int, next: bool = Fals
 def root(request: Request):
     return templates.TemplateResponse(
         request=request,
-        name="add.html", 
+        name="receipt_categories_add.html", 
         context={}
     )
 
 @router.get("/grid")
-def get_grid(request: Request, search: str = None):
-    """Страница плитки со списком всех опубликованных операций"""
-    published = get_published()
-    selected = (search or "").strip() or "all"
+def get_grid(request: Request, type: str = Query(default=None)):
+    op_type = "income" if (type or "").strip().lower() == "income" else "expense"
 
-    # Формируем варианты фильтра (диапазоны сумм)
-    options = [{"label": "Все операции", "value": "all", "selected": selected == "all"}]
-    for item in AMOUNT_RANGES:
-        options.append({"value": item["value"], "label": item["label"], "selected": selected == item["value"]})
-
-    filter_label = next((o["label"] for o in options if o["selected"]), "Все операции")
-
-    # Фильтрация по выбранному диапазону суммы (значения со знаком)
-    if selected.startswith("amt:"):
-        parts = selected.split(":")
-        if parts[1] == "lt":
-            value = float(parts[2])
-            published = [rc for rc in published if rc["amount"] is not None and rc["amount"] < value]
-        elif parts[1] == "btw":
-            lo, hi = float(parts[2]), float(parts[3])
-            published = [rc for rc in published if rc["amount"] is not None and lo <= rc["amount"] < hi]
-        elif parts[1] == "gt":
-            value = float(parts[2])
-            published = [rc for rc in published if rc["amount"] is not None and rc["amount"] >= value]
+    items = [rc for rc in get_published() if rc["type"] == op_type]
 
     return templates.TemplateResponse(
         request=request,
-        name="grid.html",
+        name="receipt_categories_grid.html",
         context={
-            "receipt_categories": published,
-            "filter_label": filter_label,
-            "filter_options": options,
+            "receipt_categories": items,
+            "op_type": op_type,
             "active_tab": "grid"
         }
     )
