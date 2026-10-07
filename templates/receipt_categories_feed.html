@@ -44,7 +44,7 @@
                         <h2 class="receipt-category-title">{{ rc.title }}</h2>
                         <p class="receipt-category-description">{{ rc.description }}</p>
                         <div class="show-more">Показать ещё</div>
-                    <a href="/feed/{{ rc.id_receipt_category }}?next=true" class="next-button">
+                    <a href="/receipt_categories_feed/{{ rc.id_receipt_category }}?next=true" class="next-button">
                         >
                     </a>
                 </div>
@@ -62,11 +62,11 @@
                 <span class="nav-icon">📊</span>
                 <span class="nav-label">Лента</span>
             </div>
-            <a href="/add" class="nav-item-add">
+            <a href="/receipt_categories_add" class="nav-item-add">
                 <span class="nav-icon1">➕</span>
                 <span class="nav-label1">Добавление</span>
             </a>
-            <a href="/grid" class="nav-item-gird">
+            <a href="/receipt_categories_grid" class="nav-item-gird">
                 <span class="nav-icon1">📋</span>
                 <span class="nav-label1">Плитка</span>
             </a>

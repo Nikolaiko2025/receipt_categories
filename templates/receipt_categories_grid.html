@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <title>Плитка</title>
-        <link rel="stylesheet" href="/static/css/style.css?v=6">
+        <link rel="stylesheet" href="/static/css/style.css?v=7">
     </head>
     <body>
         <div class="app-container">
@@ -30,12 +30,11 @@
             <main class="main-gird">
                 <h1 class="page-title">Все операции</h1>
                 
-                    <form action="/grid" method="get" class="filter-form">
+                    <form action="/receipt_categories_grid" method="get" class="filter-form">
                         <label class="filter-check">
                             <input type="checkbox" name="expense" value="1" {% if expense %}checked{% endif %}>
                             <span class="checkmark"></span>
-                            <span class="filter-check-income">Поступление</span>
-                            <span class="filter-check-expense">Выплата</span>
+                            <span class="filter-check-label">Поступление/Выплата</span>
                         </label>
                         <button type="submit" class="filter-submit">Применить</button>
                     </form>
@@ -45,7 +44,7 @@
                         {% if receipt_categories %}
                         {% for receipt_category in receipt_categories %}
                             <div class="grid-card-wrap">
-                            <a href="/feed/{{ receipt_category.id_receipt_category }}" class="grid-card">
+                            <a href="/receipt_categories_feed/{{ receipt_category.id_receipt_category }}" class="grid-card">
                                 <div class="card-image">
                                     <img src="{{ receipt_category.image_url or default_image_url }}"
                                          onerror="this.onerror=null; this.src='{{ default_image_url }}'"
@@ -62,7 +61,7 @@
                                     </div>
                                 </div>
                             </a>
-                            <form method="post" action="/grid/{{ receipt_category.id_receipt_category }}/delete">
+                            <form method="post" action="/receipt_categories_grid/{{ receipt_category.id_receipt_category }}/delete">
                                 <button type="submit" class="delete-btn">Удалить</button>
                             </form>
                             </div>
@@ -78,11 +77,11 @@
 
 
             <nav class="bottom-nav">
-                <a href="/feed" class="nav-item-feed">
+                <a href="/receipt_categories_feed" class="nav-item-feed">
                 <span class="nav-icon">📊</span>
                 <span class="nav-label1">Лента</span>
             </a>
-            <a href="/add" class="nav-item-add">
+            <a href="/receipt_categories_add" class="nav-item-add">
                 <span class="nav-icon1">➕</span>
                 <span class="nav-label1">Добавление</span>
             </a>

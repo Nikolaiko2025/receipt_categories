@@ -31,7 +31,7 @@
                 <div class="content-area">
                     <h2>Новая операция</h2>
                     {% if has_draft %}
-                    <form action="/publish" method="POST" class="add-form">
+                    <form action="/receipt_categories_publish" method="POST" class="add-form">
                         <div class="add-section">
                             <p>Сумма (₽)</p>
                             <input type="text" name="amount" value="{{ draft.amount if draft.amount is not none else '' }}" placeholder="Сумма">
@@ -43,15 +43,19 @@
                         <button type="submit" class="btn">Опубликовать</button>
                     </form>
                     {% else %}
-                    <form action="/add" method="POST" class="add-form">
+                    <form action="/receipt_categories_add" method="POST" class="add-form">
                         <div class="add-section">
                             <label class="drop-zone">
-                                <input type="file" name="image" accept="image/*">
+                                <input type="file" id="image-input" name="image" accept="image/*">
                                 <span>📷<br>Изображение</span>
+                                <img id="image-preview" alt="Предпросмотр изображения"
+                                     style="display:none; box-sizing:border-box; width:100%; height:240px; object-fit:contain; padding:6px; background:#F3F4F6; border-radius:10px;">
                             </label>
                             <label class="drop-zone">
-                                <input type="file" name="video" accept="video/*">
+                                <input type="file" id="video-input" name="video" accept="video/*">
                                 <span>🎥<br>Видео</span>
+                                <video id="video-preview" controls playsinline preload="metadata"
+                                       style="display:none; box-sizing:border-box; width:100%; height:220px; background:#000000; border-radius:10px;"></video>
                             </label>
                         </div>
                         <div class="add-section">
@@ -65,7 +69,7 @@
             </main>
 
             <nav class="bottom-nav">
-            <a href="/feed" class="nav-item-feed">
+            <a href="/receipt_categories_feed" class="nav-item-feed">
                 <span class="nav-icon">📊</span>
                 <span class="nav-label1">Лента</span>
             </a>
@@ -73,12 +77,58 @@
                 <span class="nav-icon1">➕</span>
                 <span class="nav-label">Добавление</span>
             </div>
-            <a href="/grid" class="nav-item-gird">
+            <a href="/receipt_categories_grid" class="nav-item-gird">
                 <span class="nav-icon1">📋</span>
                 <span class="nav-label1">Плитка</span>
             </a>
             </nav>
 
         </div>
+
+        <script>
+            function bindFilePreview(inputId, previewId) {
+                var input = document.getElementById(inputId);
+                var preview = document.getElementById(previewId);
+                if (!input || !preview) return;
+
+                var zone = input.parentElement;          // label.drop-zone
+                var placeholder = zone ? zone.querySelector("span") : null;
+                var objectUrl = null;
+
+                // чтобы клики по управлению видео не открывали диалог выбора файла
+                if (preview.tagName === "VIDEO") {
+                    preview.addEventListener("click", function (e) {
+                        e.stopPropagation();
+                    });
+                }
+
+                function showPlaceholder(show) {
+                    if (placeholder) placeholder.style.display = show ? "" : "none";
+                    if (zone) zone.style.height = show ? "" : "auto";
+                }
+
+                input.addEventListener("change", function () {
+                    if (objectUrl) {
+                        URL.revokeObjectURL(objectUrl);
+                        objectUrl = null;
+                    }
+                    var file = input.files && input.files[0];
+                    if (!file) {
+                        preview.style.display = "none";
+                        preview.removeAttribute("src");
+                        preview.removeAttribute("srcObject");
+                        showPlaceholder(true);
+                        return;
+                    }
+                    objectUrl = URL.createObjectURL(file);
+                    preview.src = objectUrl;
+                    preview.style.display = "block";
+                    showPlaceholder(false);
+                });
+            }
+
+            bindFilePreview("image-input", "image-preview");
+            bindFilePreview("video-input", "video-preview");
+        </script>
     </body>
 </html>

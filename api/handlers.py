@@ -21,8 +21,14 @@ templates.env.globals["default_image_url"] = DEFAULT_IMAGE_URL
 templates.env.globals["default_video_url"] = DEFAULT_VIDEO_URL
 
 
-@router.get("/feed")
-@router.get("/feed/{receipt_category_id}")
+@router.get("/")
+async def root():
+    """Корень сайта — редирект на ленту."""
+    return RedirectResponse("/receipt_categories_feed", status_code=303)
+
+
+@router.get("/receipt_categories_feed")
+@router.get("/receipt_categories_feed/{receipt_category_id}")
 async def get_feed(
     request: Request,
     receipt_category_id: int | None = None,
@@ -42,7 +48,7 @@ async def get_feed(
         current = result.scalar_one_or_none()
 
         if current is None or current.status != "Опубликован":
-            return RedirectResponse("/feed", status_code=302)
+            return RedirectResponse("/receipt_categories_feed", status_code=302)
 
         if next:
             receipt_category = await _get_next_after(db, receipt_category_id) or current
@@ -69,7 +75,7 @@ async def get_feed(
     )
 
 
-@router.get("/add")
+@router.get("/receipt_categories_add")
 async def get_add(request: Request, db: AsyncSession = Depends(get_db)):
     stmt = (
         select(Receipt_categories)
@@ -91,7 +97,7 @@ async def get_add(request: Request, db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.post("/add")
+@router.post("/receipt_categories_add")
 async def post_add(
     title: str = Form(...),
     db: AsyncSession = Depends(get_db),
@@ -108,7 +114,7 @@ async def post_add(
         if title.strip():
             existing_draft.title = title.strip()
         await db.commit()
-        return RedirectResponse("/add", status_code=303)
+        return RedirectResponse("/receipt_categories_add", status_code=303)
 
     draft = Receipt_categories(
         title=title.strip(),
@@ -124,10 +130,10 @@ async def post_add(
     db.add(draft)
     await db.commit()
 
-    return RedirectResponse("/add", status_code=303)
+    return RedirectResponse("/receipt_categories_add", status_code=303)
 
 
-@router.post("/publish")
+@router.post("/receipt_categories_publish")
 async def post_publish(
     amount: str = Form(""),
     date_value: str = Form("", alias="date"),
@@ -144,7 +150,7 @@ async def post_publish(
     draft = result.scalar_one_or_none()
 
     if draft is None:
-        return RedirectResponse("/add", status_code=303)
+        return RedirectResponse("/receipt_categories_add", status_code=303)
 
     draft.amount = (
         Decimal(amount.replace(" ", "").replace(",", ".")) if amount.strip() else None
@@ -155,10 +161,10 @@ async def post_publish(
     draft.date_formed = datetime.now()
     await db.commit()
 
-    return RedirectResponse("/feed", status_code=303)
+    return RedirectResponse("/receipt_categories_feed", status_code=303)
 
 
-@router.get("/grid")
+@router.get("/receipt_categories_grid")
 async def get_grid(request: Request, expense: bool = False, db: AsyncSession = Depends(get_db)):
     """Плитка опубликованных чеков. Фильтр по сумме одной галочкой:
     снята — Поступление (amount >= 0), отмечена — Выплата (amount < 0)."""
@@ -192,7 +198,7 @@ async def get_grid(request: Request, expense: bool = False, db: AsyncSession = D
     )
 
 
-@router.post("/grid/{receipt_category_id}/delete")
+@router.post("/receipt_categories_grid/{receipt_category_id}/delete")
 async def delete_receipt_category(
     receipt_category_id: int,
     db: AsyncSession = Depends(get_db),
@@ -206,7 +212,7 @@ async def delete_receipt_category(
                 "UPDATE receipt_categories SET status = 'Удален' WHERE id_receipt_category = $1",
                 receipt_category_id,
             )
-    return RedirectResponse("/grid", status_code=303)
+    return RedirectResponse("/receipt_categories_grid", status_code=303)
 
 
 async def _get_first_published(db: AsyncSession):

@@ -1,7 +1,7 @@
 services:
   minio:
     container_name: minio_storage
-    image: minio/minio:latest
+    image: alpine/minio:RELEASE.2025-10-15T17-29-55Z
     ports:
       - "9000:9000"
       - "9001:9001"

@@ -5,4 +5,5 @@ __pycache__
 /readme.mg
 /readme1.mg
 /readme2.mg
-/alembic
+alembic
+alembic.ini
