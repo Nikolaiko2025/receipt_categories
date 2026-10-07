@@ -145,6 +145,7 @@ python main.py                # http://127.0.0.1:8000
 |---|---|---|---|---|---|
 | 9 | `POST` | `/api/users/register` | Регистрация нового пользователя | JSON: `username` (1–50), `password` (1–255) | `201` — `UserOut`, `409` (имя занято), `400` (нет/пустые поля) |
 | 10 | `POST` | `/api/users/login` | Аутентификация — **заглушка для лаб. 4** (без токенов) | JSON: `username`, `password` | `200` — `UserOut`, `404` (нет пользователя), `403` (неверный пароль), `400` |
+| 11 | `POST` | `/api/users/logout` | Деавторизация — **заглушка для лаб. 4** (в 10 запросов Postman-коллекции отчёта не входит) | — | `200` — `{}` |
 
 ### Какие переходы статусов разрешены
 
@@ -172,6 +173,7 @@ python main.py                # http://127.0.0.1:8000
 8.  DELETE /api/receipt_categories/2
 9.  POST   /api/users/register                     (JSON {"username": "ivan", "password": "qwerty123"})
 10. POST   /api/users/login
+11. POST   /api/users/logout                (заглушка для лаб. 4)
 ```
 
 ### Коды ответов и краевые случаи
@@ -182,7 +184,7 @@ python main.py                # http://127.0.0.1:8000
 | Что отправить | Код | Почему |
 |---|---|---|
 | `GET /api/receipt_categories/99` (и `-1`, `999999999999`, `abc`) | `405` | такого метода в API нет: услуга по иду отдаётся только через ленту |
-| `GET /api/users/11` | `404` | метод не зарегистрирован (домен пользователя — только `register`/`login`) |
+| `GET /api/users/11` | `404` | метод не зарегистрирован (домен пользователя — только `register`/`login`/`logout`) |
 | `GET /api/receipt_categories/feed/99?next=true` | `404` | исходной услуги не существует |
 | `GET /api/receipt_categories?min_amount=abc` | `400` | сумма не является числом |
 | `GET /api/receipt_categories?date_from=01.01.2026` | `400` | в фильтре дата только `ГГГГ-ММ-ДД` |
@@ -236,11 +238,7 @@ python main.py                # http://127.0.0.1:8000
 |---|---|---|---|
 | `id_receipt_category` | `integer` | PK | идентификатор, генерируется БД |
 | `title` | `varchar(100)` | NOT NULL | название услуги |
-| `type` | `varchar(20)` | NOT NULL | `income` / `expense` |
-| `category` | `varchar(20)` | NOT NULL | код категории: `debit`, `sales`, `credit`, `salary`, `suppliers` |
-| `category_display` | `varchar(50)` | NOT NULL | название категории для интерфейса |
 | `amount` | `numeric(15,2)` | | сумма операции |
-| `date` | `date` | | дата операции |
 | `description` | `text` | | описание |
 | `status` | `varchar(11)` | NOT NULL | `Черновик` / `Опубликован` / `Удален` — **только в БД, в JSON не отдаётся** |
 | `image_url` | `varchar(255)` | NOT NULL | имя файла изображения в MinIO |
