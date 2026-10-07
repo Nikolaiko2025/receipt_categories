@@ -7,6 +7,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.session import get_db, engine
+from core.current_user import get_current_user
 from models.receipt_categories import Receipt_categories
 from models.like import Like
 
@@ -116,6 +117,7 @@ async def post_add(
         await db.commit()
         return RedirectResponse("/receipt_categories_add", status_code=303)
 
+    current_user = await get_current_user(db)
     draft = Receipt_categories(
         title=title.strip(),
         type="income",
@@ -126,6 +128,7 @@ async def post_add(
         video_url=DEFAULT_VIDEO_URL,
         date_created=datetime.now(),
         creator=CURRENT_USER,
+        id_user=current_user.id_user,
     )
     db.add(draft)
     await db.commit()
@@ -209,7 +212,8 @@ async def delete_receipt_category(
         asyncpg_conn = raw.driver_connection
         async with asyncpg_conn.transaction():
             await asyncpg_conn.execute(
-                "UPDATE receipt_categories SET status = 'Удален' WHERE id_receipt_category = $1",
+                "UPDATE receipt_categories SET status = 'Удален', "
+                "date_completed = now() WHERE id_receipt_category = $1",
                 receipt_category_id,
             )
     return RedirectResponse("/receipt_categories_grid", status_code=303)

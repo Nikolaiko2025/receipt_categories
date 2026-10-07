@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Date, DateTime, Integer, Numeric, String, Text
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import relationship
 from db.base import Base
 
@@ -20,5 +20,13 @@ class Receipt_categories(Base):
     date_created = Column(DateTime, nullable=False)
     creator = Column(String(50), nullable=False)
     date_formed = Column(DateTime)
+    # система: кто создал (FK на пользователя) и когда услуга завершена (удалена)
+    id_user = Column(Integer, ForeignKey("users.id_user"), nullable=False)
+    date_completed = Column(DateTime)
 
-    likes = relationship("Like", backref="receipt_category")
+    # в таблице likes внешнего ключа нет, поэтому соединение указываем явно
+    likes = relationship(
+        "Like",
+        primaryjoin="Receipt_categories.id_receipt_category == foreign(Like.id_receipt_category)",
+        backref="receipt_category",
+    )
