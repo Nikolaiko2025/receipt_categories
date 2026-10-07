@@ -145,7 +145,6 @@ python main.py                # http://127.0.0.1:8000
 |---|---|---|---|---|---|
 | 9 | `POST` | `/api/users/register` | Регистрация нового пользователя | JSON: `username` (1–50), `password` (1–255) | `201` — `UserOut`, `409` (имя занято), `400` (нет/пустые поля) |
 | 10 | `POST` | `/api/users/login` | Аутентификация — **заглушка для лаб. 4** (без токенов) | JSON: `username`, `password` | `200` — `UserOut`, `404` (нет пользователя), `403` (неверный пароль), `400` |
-| 11 | `POST` | `/api/users/logout` | Деавторизация — **заглушка для лаб. 4** | — | `200` — `{}` |
 
 ### Какие переходы статусов разрешены
 
@@ -172,7 +171,7 @@ python main.py                # http://127.0.0.1:8000
 7.  POST   /api/receipt_categories/1/like          (JSON {"value": 1})
 8.  DELETE /api/receipt_categories/2
 9.  POST   /api/users/register                     (JSON {"username": "ivan", "password": "qwerty123"})
-10. POST   /api/users/login  /  POST /api/users/logout
+10. POST   /api/users/login
 ```
 
 ### Коды ответов и краевые случаи
@@ -183,7 +182,7 @@ python main.py                # http://127.0.0.1:8000
 | Что отправить | Код | Почему |
 |---|---|---|
 | `GET /api/receipt_categories/99` (и `-1`, `999999999999`, `abc`) | `405` | такого метода в API нет: услуга по иду отдаётся только через ленту |
-| `GET /api/users/11` | `404` | метод не зарегистрирован (домен пользователя — только `register`/`login`/`logout`) |
+| `GET /api/users/11` | `404` | метод не зарегистрирован (домен пользователя — только `register`/`login`) |
 | `GET /api/receipt_categories/feed/99?next=true` | `404` | исходной услуги не существует |
 | `GET /api/receipt_categories?min_amount=abc` | `400` | сумма не является числом |
 | `GET /api/receipt_categories?date_from=01.01.2026` | `400` | в фильтре дата только `ГГГГ-ММ-ДД` |

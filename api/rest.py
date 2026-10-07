@@ -402,9 +402,3 @@ async def login_user(payload: UserIn, repo: Repository = Depends(get_repository)
         raise HTTPException(status_code=403)
     return UserOut(id_user=user.id_user, username=user.username)
 
-
-@router.post("/users/logout")
-async def logout_user() -> dict:
-    """Деавторизация — заглушка для 4-й лабораторной."""
-    return {}
-
