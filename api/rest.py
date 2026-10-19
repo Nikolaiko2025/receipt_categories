@@ -13,19 +13,24 @@
   * адрес каждого метода начинается с /api, методы соответствуют REST;
   * записи в статусе «Удален» на клиент не передаются;
   * системные поля (ид, статус, создатель, даты) с клиента не принимаются —
-    они вычисляются на бэкенде: пользователь берётся из функции-синглтона
-    core.current_user, даты и статусы — из бизнес-логики;
+    они вычисляются на бэкенде: пользователь берётся из cookie-сессии в Redis
+    (core.auth / core.sessions), даты и статусы — из бизнес-логики;
+  * без авторизации доступно только чтение (список, лента), методы
+    создателя (добавление, публикация, удаление, лайк, черновик) возвращают
+    401 Unauthorized — так же методы помечены в Swagger (cookie session_id);
   * в JSON нет ни статуса услуги, ни отдельных сообщений об ошибках —
-    код состояния возвращает сам HTTP-ответ: 200, 201, 400, 403, 404, 405, 409.
+    код состояния возвращает сам HTTP-ответ: 200, 201, 400, 401, 403, 404, 405, 409.
 """
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Cookie, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.serializers import PublishIn, ReceiptOut, UserIn, UserOut
-from core import storage
+from core import sessions, storage
+from core.auth import get_current_user, get_optional_user
+from core.config import settings
 from core.constants import (
     DEFAULT_CATEGORY,
     DEFAULT_CATEGORY_DISPLAY,
@@ -36,32 +41,37 @@ from core.constants import (
     STATUS_DRAFT,
     STATUS_PUBLISHED,
 )
-from core.current_user import get_current_user
 from db.repository import Repository
 from db.session import get_db
 from models.receipt_categories import Receipt_categories
 from models.user import User
 
-router = APIRouter(prefix="/api", tags=["api"])
+router = APIRouter(prefix="/api", tags=["Услуги"])
 
 
 # ---------------------------------------------------------------- dependencies
-
-async def current_user(db: AsyncSession = Depends(get_db)) -> User:
-    """Текущий пользователь — синглтон из core.current_user (константа)."""
-    return await get_current_user(db)
-
 
 def get_repository(db: AsyncSession = Depends(get_db)) -> Repository:
     """Repository работает в той же сессии, что и текущий пользователь."""
     return Repository(db)
 
 
+def _set_session_cookie(response: Response, session_id: str) -> None:
+    """Куки с идентификатором сессии Redis: HttpOnly (JS недоступен), 24 часа."""
+    response.set_cookie(
+        key=settings.SESSION_COOKIE,
+        value=session_id,
+        max_age=settings.SESSION_TTL_SECONDS,
+        httponly=True,
+        samesite="lax",
+    )
+
+
 # ---------------------------------------------------------------- helpers
 
 def _to_out(
     receipt: Receipt_categories,
-    user: User,
+    user: User | None,
     counts: dict[int, int],
     liked: set[int],
 ) -> ReceiptOut:
@@ -69,6 +79,7 @@ def _to_out(
 
     type, category, category_display и date в ответ не входят — они скрыты
     от клиента (данные есть в БД, по ним работает фильтрация).
+    user = None — гость: is_creator = 0, liked = 0.
     """
     return ReceiptOut(
         id_receipt_category=receipt.id_receipt_category,
@@ -81,22 +92,22 @@ def _to_out(
         date_formed=receipt.date_formed,
         date_completed=receipt.date_completed,
         likes=counts.get(receipt.id_receipt_category, 0),
-        is_creator=1 if receipt.id_user == user.id_user else 0,
+        is_creator=1 if user is not None and receipt.id_user == user.id_user else 0,
         liked=1 if receipt.id_receipt_category in liked else 0,
     )
 
 
 async def _one_out(
-    repo: Repository, user: User, receipt: Receipt_categories
+    repo: Repository, user: User | None, receipt: Receipt_categories
 ) -> ReceiptOut:
-    counts, liked = await repo.likes_meta(user.id_user, [receipt])
+    counts, liked = await repo.likes_meta(user.id_user if user else None, [receipt])
     return _to_out(receipt, user, counts, liked)
 
 
 async def _many_out(
-    repo: Repository, user: User, receipts: list[Receipt_categories]
+    repo: Repository, user: User | None, receipts: list[Receipt_categories]
 ) -> list[ReceiptOut]:
-    counts, liked = await repo.likes_meta(user.id_user, receipts)
+    counts, liked = await repo.likes_meta(user.id_user if user else None, receipts)
     return [_to_out(receipt, user, counts, liked) for receipt in receipts]
 
 
@@ -152,14 +163,20 @@ async def list_receipt_categories(
     date_from: date | None = Query(None, description="дата операции от (ГГГГ-ММ-ДД)"),
     date_to: date | None = Query(None, description="дата операции до (ГГГГ-ММ-ДД)"),
     expense: bool | None = Query(None, description="true — только выплаты (amount < 0)"),
-    mine: bool | None = Query(None, description="true — только услуги текущего пользователя"),
+    mine: bool | None = Query(None, description="true — только услуги текущего пользователя (нужна авторизация)"),
     repo: Repository = Depends(get_repository),
-    user: User = Depends(current_user),
+    user: User | None = Depends(get_optional_user),
 ):
     """Список опубликованных услуг с фильтрацией на стороне БД.
 
-    Признак is_creator = 1, если создатель услуги совпадает с текущим пользователем.
+    Метод чтения: работает и без авторизации (тогда user — гость, is_creator = 0).
+    Признак is_creator = 1, если создатель услуги совпадает с текущим
+    пользователем. Фильтр mine=true относится к личным данным — без
+    авторизации возвращает 401 Unauthorized.
     """
+    if mine and user is None:
+        raise HTTPException(status_code=401)
+
     receipts = await repo.list_receipts(
         type=type,
         category=category,
@@ -170,7 +187,7 @@ async def list_receipt_categories(
         date_to=date_to,
         expense=expense,
         mine=mine,
-        user_id=user.id_user,
+        user_id=user.id_user if user else None,
     )
     return await _many_out(repo, user, receipts)
 
@@ -178,9 +195,12 @@ async def list_receipt_categories(
 @router.get("/receipt_categories/feed", response_model=ReceiptOut)
 async def feed(
     repo: Repository = Depends(get_repository),
-    user: User = Depends(current_user),
+    user: User | None = Depends(get_optional_user),
 ):
-    """Лента без указания ид: первая опубликованная услуга (LIMIT 1)."""
+    """Лента без указания ид: первая опубликованная услуга (LIMIT 1).
+
+    Метод чтения — доступен без авторизации (гость: is_creator = 0, liked = 0).
+    """
     receipt = await repo.get_first_published()
     if receipt is None:
         raise HTTPException(status_code=404)
@@ -192,10 +212,13 @@ async def feed_by_id(
     receipt_category_id: int,
     next: bool = Query(False, description="true — следующая опубликованная услуга"),
     repo: Repository = Depends(get_repository),
-    user: User = Depends(current_user),
+    user: User | None = Depends(get_optional_user),
 ):
     """Лента по ид. next=true — следующая опубликованная услуга (LIMIT 1);
-    несуществующий ид — 404, конец ленты — начинаем сначала."""
+    несуществующий ид — 404, конец ленты — начинаем сначала.
+
+    Метод чтения — доступен без авторизации (гость: is_creator = 0, liked = 0).
+    """
     current = await repo.get_receipt(receipt_category_id)
     if current is None or current.status != STATUS_PUBLISHED:
         raise HTTPException(status_code=404)
@@ -214,9 +237,12 @@ async def feed_by_id(
 @router.get("/receipt_categories/draft", response_model=ReceiptOut)
 async def get_draft(
     repo: Repository = Depends(get_repository),
-    user: User = Depends(current_user),
+    user: User = Depends(get_current_user),
 ):
-    """Поля черновика: ид не указывается, запись не более 1 на пользователя."""
+    """Поля черновика: ид не указывается, запись не более 1 на пользователя.
+
+    Личные данные — нужна авторизация (cookie session_id), иначе 401.
+    """
     receipt = await repo.get_draft(user.id_user)
     if receipt is None:
         raise HTTPException(status_code=404)
@@ -235,13 +261,16 @@ async def create_receipt_category(
     image: UploadFile | None = File(None, description="файл изображения"),
     video: UploadFile | None = File(None, description="файл короткого видео"),
     repo: Repository = Depends(get_repository),
-    user: User = Depends(current_user),
+    user: User = Depends(get_current_user),
 ):
     """Добавление услуги (multipart/form-data): файлы image и video уходят в MinIO,
     в БД сохраняются их сгенерированные латинские имена.
 
-    Создаётся не более одного черновика на пользователя: если черновик уже есть,
-    обновляется он. Некорректные сумма/дата -> 400 Bad Request (до загрузки файлов).
+    Метод создателя — нужна авторизация (cookie session_id), иначе 401.
+    Создатель услуги (creator, id_user) берётся из сессии, с клиента не
+    принимается. Создаётся не более одного черновика на пользователя: если
+    черновик уже есть, обновляется он. Некорректные сумма/дата -> 400 Bad
+    Request (до загрузки файлов).
     """
     name = title.strip()
     amount_value = _parse_amount(amount)      # 400 при мусоре
@@ -285,10 +314,13 @@ async def create_receipt_category(
 async def publish_receipt_category(
     payload: PublishIn | None = Body(None),
     repo: Repository = Depends(get_repository),
-    user: User = Depends(current_user),
+    user: User = Depends(get_current_user),
 ):
     """Публикация: Черновик -> Опубликован, дата формирования проставляется
-    на бэкенде. Опубликовать можно только черновик, вернуть в черновик нельзя."""
+    на бэкенде. Опубликовать можно только черновик, вернуть в черновик нельзя.
+
+    Метод создателя — нужна авторизация (cookie session_id), иначе 401.
+    """
     fields = payload.model_dump(exclude_unset=True) if payload else {}
 
     if fields.get("id_receipt_category") is not None:
@@ -324,10 +356,11 @@ async def publish_receipt_category(
 async def delete_receipt_category(
     receipt_category_id: int,
     repo: Repository = Depends(get_repository),
-    user: User = Depends(current_user),
+    user: User = Depends(get_current_user),
 ):
     """Удаление услуги: только мягкое (status = «Удален») и только своих услуг.
 
+    Метод создателя — нужна авторизация (cookie session_id), иначе 401.
     Вместе со статусом на бэкенде проставляется системная дата завершения —
     клиент её передавать не может.
     """
@@ -349,9 +382,12 @@ async def like_receipt_category(
     payload: dict | None = Body(None, description='{"value": 1} — поставить лайк, {"value": 0} — снять'),
     value: int | None = Query(None, description="0 — снять лайк, 1 — поставить"),
     repo: Repository = Depends(get_repository),
-    user: User = Depends(current_user),
+    user: User = Depends(get_current_user),
 ):
     """Лайк от текущего пользователя: value = 1 ставит лайк, value = 0 снимает.
+
+    Метод создателя — нужна авторизация (cookie session_id), иначе 401:
+    лайк всегда принадлежит пользователю из сессии.
     Любое другое value — 400 Bad Request."""
     receipt = await repo.get_receipt(receipt_category_id)
     if receipt is None or receipt.status != STATUS_PUBLISHED:
@@ -379,35 +415,66 @@ async def like_receipt_category(
 
 # ---------------------------------------------------------------- домен «пользователь»
 
-@router.post("/users/register", response_model=UserOut, status_code=201)
+@router.post("/users/register", response_model=UserOut, status_code=201, tags=["Пользователи"])
 async def register_user(
     payload: UserIn,
+    response: Response,
     repo: Repository = Depends(get_repository),
 ):
-    """Регистрация нового пользователя."""
+    """Регистрация нового пользователя (аутентификация + автовход).
+
+    Логин и пароль проверяются на сервере: свободно — создаётся пользователь,
+    занято — 409 Conflict. Учётные данные с клиента не передаются.
+    После успешной регистрации сразу создаётся сессия в Redis, её
+    идентификатор возвращается в cookie session_id (HttpOnly) — вход уже
+    выполнен, методы создателя доступны без отдельного login.
+    """
     if await repo.get_user_by_login(payload.username) is not None:
         raise HTTPException(status_code=409)
 
     user = await repo.create_user(payload.username, payload.password)
+    session_id = await sessions.create_session(user.id_user, user.username)
+    _set_session_cookie(response, session_id)
     return UserOut(id_user=user.id_user, username=user.username)
 
 
-@router.post("/users/login", response_model=UserOut)
-async def login_user(payload: UserIn, repo: Repository = Depends(get_repository)):
-    """Аутентификация — заглушка для 4-й лабораторной (без токенов)."""
+@router.post("/users/login", response_model=UserOut, tags=["Пользователи"])
+async def login_user(
+    payload: UserIn,
+    response: Response,
+    repo: Repository = Depends(get_repository),
+):
+    """Аутентификация: проверка логина и пароля, открытие сессии.
+
+    Пользователь не найден — 404, неверный пароль — 403. При успехе в Redis
+    создаётся сессия (ключ session:<ид>, значение «id_user|username», TTL
+    24 часа), клиенту возвращается тот же JSON и cookie session_id (HttpOnly) —
+    этот cookie используется дальше в Swagger (кнопка Authorize) и в
+    Postman/Insomnia (заголовок Cookie: session_id=...).
+    """
     user = await repo.get_user_by_login(payload.username)
     if user is None:
         raise HTTPException(status_code=404)
     if user.password != payload.password:
         raise HTTPException(status_code=403)
+
+    session_id = await sessions.create_session(user.id_user, user.username)
+    _set_session_cookie(response, session_id)
     return UserOut(id_user=user.id_user, username=user.username)
 
 
-@router.post("/users/logout")
-async def logout_user() -> dict:
-    """Деавторизация — заглушка для 4-й лабораторной: токенов нет, тело пустое.
+@router.post("/users/logout", tags=["Пользователи"])
+async def logout_user(
+    response: Response,
+    session_id: str | None = Cookie(None, alias=settings.SESSION_COOKIE),
+):
+    """Деавторизация: сессия удаляется из Redis, cookie — из ответа.
 
-    Метод обязателен по методичке, но в 10 запросов Postman-коллекции отчёта не входит.
+    После выхода методы создателя возвращают 401 Unauthorized. Повторный
+    вызов без cookie — не ошибка: 200 с пустым телом («уже вышли»).
+    Метод обязателен по методичке, в 10 запросов Postman-коллекции отчёта не входит.
     """
+    await sessions.delete_session(session_id)
+    response.delete_cookie(settings.SESSION_COOKIE)
     return {}
 

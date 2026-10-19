@@ -31,8 +31,19 @@ services:
     depends_on:
       - postgres
 
+  redis:
+    container_name: redis_sessions
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    # save нужен, чтобы сессии были видны через cmd: redis-cli KEYS "session:*"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+
 volumes:
   minio-data:
   postgres_data:
+  redis_data:
 
 

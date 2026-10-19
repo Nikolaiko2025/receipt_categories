@@ -44,6 +44,13 @@ class Repository:
         await self.db.refresh(user)
         return user
 
+    async def get_user_by_id(self, user_id: int) -> User | None:
+        """Пользователь по идентификатору (восстановление из cookie-сессии)."""
+        if not _valid_id(user_id):
+            return None
+        result = await self.db.execute(select(User).where(User.id_user == user_id))
+        return result.scalar_one_or_none()
+
     # ---------------------------------------------------------- receipt_categories
 
     async def list_receipts(
@@ -145,8 +152,11 @@ class Repository:
 
     # ----------------------------------------------------------------- likes
 
-    async def likes_meta(self, user_id: int, receipts: list[Receipt_categories]):
-        """(сколько лайков у каждой услуги, лайкнул ли её текущий пользователь)."""
+    async def likes_meta(self, user_id: int | None, receipts: list[Receipt_categories]):
+        """(сколько лайков у каждой услуги, лайкнул ли её текущий пользователь).
+
+        user_id = None — гость: лайки считаются, признак «мой лайк» пуст.
+        """
         ids = [receipt.id_receipt_category for receipt in receipts]
         if not ids:
             return {}, set()
@@ -160,6 +170,8 @@ class Repository:
                 )
             ).all()
         )
+        if user_id is None:
+            return counts, set()
         liked = set(
             (
                 await self.db.execute(

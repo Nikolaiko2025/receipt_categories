@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "image"
     MINIO_PUBLIC_URL: str = "http://localhost:9000"
 
+    # Redis — хранилище сессий (идентификатор сессии живёт в cookie)
+    REDIS_URL: str = "redis://localhost:6379/0"
+    SESSION_COOKIE: str = "session_id"
+    SESSION_TTL_SECONDS: int = 60 * 60 * 24  # время жизни сессии — 24 часа
+
     @property
     def DATABASE_URL(self) -> str:
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
