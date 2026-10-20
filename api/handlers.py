@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.session import get_db, engine
 from models.receipt_categories import Receipt_categories
 from models.like import Like
+from models.user import User
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -116,6 +117,8 @@ async def post_add(
         await db.commit()
         return RedirectResponse("/receipt_categories_add", status_code=303)
 
+    user = await _get_current_user(db)
+
     draft = Receipt_categories(
         title=title.strip(),
         type="income",
@@ -126,6 +129,7 @@ async def post_add(
         video_url=DEFAULT_VIDEO_URL,
         date_created=datetime.now(),
         creator=CURRENT_USER,
+        id_user=user.id_user,
     )
     db.add(draft)
     await db.commit()
@@ -138,6 +142,8 @@ async def post_publish(
     amount: str = Form(""),
     date_value: str = Form("", alias="date"),
     description: str = Form(""),
+    operation_type: str = Form("income", alias="type"),
+    tax_code: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = (
@@ -157,6 +163,8 @@ async def post_publish(
     )
     draft.date = date.fromisoformat(date_value) if date_value.strip() else None
     draft.description = description.strip() or None
+    draft.type = operation_type if operation_type in ("income", "expense") else "income"
+    draft.tax_code = tax_code.strip() or None
     draft.status = "Опубликован"
     draft.date_formed = datetime.now()
     await db.commit()
@@ -213,6 +221,20 @@ async def delete_receipt_category(
                 receipt_category_id,
             )
     return RedirectResponse("/receipt_categories_grid", status_code=303)
+
+
+async def _get_current_user(db: AsyncSession) -> User:
+    """Текущий пользователь для колонки id_user (NOT NULL в БД);
+    если пользователя ещё нет — создаём."""
+    result = await db.execute(
+        select(User).where(User.username == CURRENT_USER).limit(1)
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        user = User(username=CURRENT_USER, password="")
+        db.add(user)
+        await db.flush()
+    return user
 
 
 async def _get_first_published(db: AsyncSession):

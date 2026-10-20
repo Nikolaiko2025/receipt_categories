@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <title>Добавление</title>
-        <link rel="stylesheet" href="/static/css/style.css?v=9">
+        <link rel="stylesheet" href="/static/css/style.css?v=10">
     </head>
     <body>
         <div class="app-container">
@@ -39,6 +39,18 @@
                             <input type="date" name="date" value="{{ draft.date if draft.date else '' }}">
                             <p>Описание</p>
                             <textarea name="description" rows="4" placeholder="Описание">{{ draft.description or '' }}</textarea>
+                            <p>Тип операции</p>
+                            <div class="toggle-container">
+                                <input type="radio" class="type-radio" id="type-income" name="type" value="income"
+                                       {% if draft.type != 'expense' %}checked{% endif %}>
+                                <input type="radio" class="type-radio" id="type-expense" name="type" value="expense"
+                                       {% if draft.type == 'expense' %}checked{% endif %}>
+                                <span class="active-toggle"></span>
+                                <label class="span-1" for="type-income">Поступление</label>
+                                <label class="span-2" for="type-expense">Выплата</label>
+                            </div>
+                            <p>Код операции в налоговой</p>
+                            <input type="text" name="tax_code" value="{{ draft.tax_code or '' }}" placeholder="Например, 01">
                         </div>
                         <button type="submit" class="btn">Опубликовать</button>
                     </form>

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Date, DateTime, Integer, Numeric, String, Text
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import relationship
 from db.base import Base
 
@@ -7,6 +7,7 @@ class Receipt_categories(Base):
     __tablename__ = "receipt_categories"
 
     id_receipt_category = Column(Integer, primary_key=True)
+    id_user = Column(Integer, ForeignKey("users.id_user"), nullable=False)
     title = Column(String(100), nullable=False)
     type = Column(String(20), nullable=False)
     category = Column(String(20), nullable=False)
@@ -17,6 +18,7 @@ class Receipt_categories(Base):
     status = Column(String(11), nullable=False)
     image_url = Column(String(255), nullable=False)
     video_url = Column(String(255), nullable=False)
+    tax_code = Column(String(20))
     date_created = Column(DateTime, nullable=False)
     creator = Column(String(50), nullable=False)
     date_formed = Column(DateTime)

@@ -309,11 +309,10 @@ color: #6B7280;
 
 
 .toggle-container{
-position: absolute;
+position: relative;
 width: 350px;
 height: 35px;
-left: 0px;
-top: 20px;
+margin: 0 auto;
 background: #F3F4F6;
 border-radius: 10px;
 }
