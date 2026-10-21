@@ -12,7 +12,7 @@ class Receipt_categories(Base):
     type = Column(String(20), nullable=False)
     # код операции, который пользователь вводит в интерфейсе (например, 01 или 02)
     tax_code = Column(String(20))
-    # legacy-поля прежней версии схемы: в интерфейсе больше не показываются
+    # legacy-поля прежней версии схемы: остаются в БД, но скрыты из API и Swagger
     category = Column(String(20), nullable=False)
     category_display = Column(String(50), nullable=False)
     amount = Column(Numeric(15, 2))

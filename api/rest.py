@@ -21,13 +21,13 @@
   * в JSON нет ни статуса услуги, ни отдельных сообщений об ошибках —
     код состояния возвращает сам HTTP-ответ: 200, 201, 400, 401, 403, 404, 405, 409.
 """
-from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from datetime import datetime
 
 from fastapi import APIRouter, Body, Cookie, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.serializers import PublishIn, ReceiptOut, UserIn, UserOut
+from api.serializers import FeedOut, PublishIn, ReceiptOut, UserIn, UserOut
 from core import sessions, storage
 from core.auth import get_current_user, get_optional_user
 from core.config import settings
@@ -41,12 +41,21 @@ from core.constants import (
     STATUS_DRAFT,
     STATUS_PUBLISHED,
 )
+from core.security import hash_password, verify_password
 from db.repository import Repository
 from db.session import get_db
 from models.receipt_categories import Receipt_categories
 from models.user import User
 
-router = APIRouter(prefix="/api", tags=["Услуги"])
+router = APIRouter(prefix="/api")
+
+# описания ошибок для Swagger (тело ошибки пустое — код возвращает HTTP-ответ)
+E400 = {"description": "Некорректные данные запроса"}
+E401 = {"description": "Нет авторизации: отсутствует или истекла сессия"}
+E403 = {"description": "Действие запрещено: услуга принадлежит другому пользователю"}
+E403_PASSWORD = {"description": "Неверный пароль"}
+E404 = {"description": "Запись не найдена"}
+E409 = {"description": "Логин уже занят"}
 
 
 # ---------------------------------------------------------------- dependencies
@@ -77,16 +86,14 @@ def _to_out(
 ) -> ReceiptOut:
     """Сборка единого JSON-формата услуги (набор полей всегда одинаковый).
 
-    category, category_display и date в ответ не входят — это legacy-поля
-    прежней версии схемы, в интерфейсе их заменяют type и tax_code.
-    user = None — гость: is_creator = 0, liked = 0.
+    Legacy-поля category, category_display, amount и date в ответ не входят:
+    они остаются только в БД. user = None — гость: is_creator = 0, liked = 0.
     """
     return ReceiptOut(
         id_receipt_category=receipt.id_receipt_category,
         title=receipt.title or "",
         type=receipt.type,
         tax_code=receipt.tax_code,
-        amount=float(receipt.amount) if receipt.amount is not None else None,
         description=receipt.description,
         image_url=storage.public_url(receipt.image_url) or "",
         video_url=storage.public_url(receipt.video_url) or "",
@@ -125,68 +132,32 @@ async def _save_upload(upload_file: UploadFile, kind: str) -> str | None:
     return name
 
 
-def _parse_amount(raw: str | None) -> Decimal | None:
-    """1200000 | 1 234,56 -> Decimal; пусто -> None; мусор -> 400 Bad Request."""
-    if raw is None or not raw.strip():
-        return None
-    cleaned = raw.strip().replace("\u00a0", "").replace(" ", "").replace(",", ".")
-    try:
-        return Decimal(cleaned)
-    except InvalidOperation:
-        raise HTTPException(status_code=400)
-
-
-def _parse_date(raw: str | None) -> date | None:
-    """2026-10-07 | 07.10.2026 | 2026-10-07T12:00 -> date; пусто -> None; мусор -> 400."""
-    if raw is None or not raw.strip():
-        return None
-    value = raw.strip()
-    for parser in (
-        lambda v: datetime.fromisoformat(v).date(),
-        lambda v: datetime.strptime(v, "%d.%m.%Y").date(),
-        lambda v: datetime.strptime(v, "%Y/%m/%d").date(),
-    ):
-        try:
-            return parser(value)
-        except ValueError:
-            continue
-    raise HTTPException(status_code=400)
-
-
 # ---------------------------------------------------------------- домен «услуга»
 
-@router.get("/receipt_categories", response_model=list[ReceiptOut])
+@router.get(
+    "/receipt_categories",
+    response_model=list[ReceiptOut],
+    tags=["Услуги"],
+    summary="Список услуг",
+    responses={401: E401},
+)
 async def list_receipt_categories(
     type: str | None = Query(None, description="income — поступление, expense — выплата"),
-    category: str | None = Query(None, description="код категории: debit, sales, credit, salary, suppliers"),
+    tax_code: str | None = Query(None, description="код операции, например 01"),
     title: str | None = Query(None, description="поиск по названию (частичный, без учёта регистра)"),
-    min_amount: float | None = Query(None, description="сумма от"),
-    max_amount: float | None = Query(None, description="сумма до"),
-    date_from: date | None = Query(None, description="дата операции от (ГГГГ-ММ-ДД)"),
-    date_to: date | None = Query(None, description="дата операции до (ГГГГ-ММ-ДД)"),
     expense: bool | None = Query(None, description="true — только выплаты (type = expense)"),
     mine: bool | None = Query(None, description="true — только услуги текущего пользователя (нужна авторизация)"),
     repo: Repository = Depends(get_repository),
     user: User | None = Depends(get_optional_user),
 ):
-    """Список опубликованных услуг с фильтрацией на стороне БД.
-
-    Метод чтения: работает и без авторизации (тогда user — гость, is_creator = 0).
-    Признак is_creator = 1, если создатель услуги совпадает с текущим
-    пользователем. Фильтр mine=true относится к личным данным — без
-    авторизации возвращает 401 Unauthorized.
-    """
+    """Список опубликованных услуг с фильтрами."""
     if mine and user is None:
         raise HTTPException(status_code=401)
 
     receipts = await repo.list_receipts(
         type=type,
-        category=category,
+        tax_code=tax_code,
         title=title,
-        min_amount=min_amount,
-        max_amount=max_amount,
-        date_from=date_from,
-        date_to=date_to,
         expense=expense,
         mine=mine,
         user_id=user.id_user if user else None,
@@ -194,90 +165,85 @@ async def list_receipt_categories(
     return await _many_out(repo, user, receipts)
 
 
-@router.get("/receipt_categories/feed", response_model=ReceiptOut)
+@router.get(
+    "/receipt_categories/feed",
+    response_model=FeedOut,
+    tags=["Услуги"],
+    summary="Лента",
+    responses={404: E404},
+)
 async def feed(
+    id: int | None = Query(None, description="ид услуги из ленты; без параметра — первая опубликованная"),
     repo: Repository = Depends(get_repository),
     user: User | None = Depends(get_optional_user),
 ):
-    """Лента без указания ид: первая опубликованная услуга (LIMIT 1).
+    """Опубликованная услуга ленты и данные следующей (ид и видео).
 
-    Метод чтения — доступен без авторизации (гость: is_creator = 0, liked = 0).
+    В ответе у каждой услуги есть next_id_receipt_category и next_video_url:
+    клиент показывает текущее видео и заранее подгружает следующее.
+    После последней услуги лента начинается сначала (next — первая услуга).
     """
-    receipt = await repo.get_first_published()
-    if receipt is None:
-        raise HTTPException(status_code=404)
-    return await _one_out(repo, user, receipt)
-
-
-@router.get("/receipt_categories/feed/{receipt_category_id}", response_model=ReceiptOut)
-async def feed_by_id(
-    receipt_category_id: int,
-    next: bool = Query(False, description="true — следующая опубликованная услуга"),
-    repo: Repository = Depends(get_repository),
-    user: User | None = Depends(get_optional_user),
-):
-    """Лента по ид. next=true — следующая опубликованная услуга (LIMIT 1);
-    несуществующий ид — 404, конец ленты — начинаем сначала.
-
-    Метод чтения — доступен без авторизации (гость: is_creator = 0, liked = 0).
-    """
-    current = await repo.get_receipt(receipt_category_id)
-    if current is None or current.status != STATUS_PUBLISHED:
-        raise HTTPException(status_code=404)
-
-    if not next:
-        return await _one_out(repo, user, current)
-
-    receipt = await repo.get_next_published(receipt_category_id)
-    if receipt is None:  # конец ленты — начинаем сначала
+    if id is None:
         receipt = await repo.get_first_published()
+    else:
+        receipt = await repo.get_receipt(id)
+        if receipt is not None and receipt.status != STATUS_PUBLISHED:
+            raise HTTPException(status_code=404)
     if receipt is None:
         raise HTTPException(status_code=404)
-    return await _one_out(repo, user, receipt)
+
+    nxt = await repo.get_next_published(receipt.id_receipt_category)
+    if nxt is None:  # конец ленты — начинаем сначала
+        nxt = await repo.get_first_published()
+    if nxt is None:
+        raise HTTPException(status_code=404)
+
+    out = await _one_out(repo, user, receipt)
+    return FeedOut(
+        **out.model_dump(),
+        next_id_receipt_category=nxt.id_receipt_category,
+        next_video_url=storage.public_url(nxt.video_url) or "",
+    )
 
 
-@router.get("/receipt_categories/draft", response_model=ReceiptOut)
+@router.get(
+    "/receipt_categories/draft",
+    response_model=ReceiptOut,
+    tags=["Услуги"],
+    summary="Черновик",
+    responses={401: E401, 404: E404},
+)
 async def get_draft(
     repo: Repository = Depends(get_repository),
     user: User = Depends(get_current_user),
 ):
-    """Поля черновика: ид не указывается, запись не более 1 на пользователя.
-
-    Личные данные — нужна авторизация (cookie session_id), иначе 401.
-    """
+    """Черновик текущего пользователя."""
     receipt = await repo.get_draft(user.id_user)
     if receipt is None:
         raise HTTPException(status_code=404)
     return await _one_out(repo, user, receipt)
 
 
-@router.post("/receipt_categories", response_model=ReceiptOut, status_code=201)
+@router.post(
+    "/receipt_categories",
+    response_model=ReceiptOut,
+    status_code=201,
+    tags=["Услуги"],
+    summary="Добавить услугу",
+    responses={400: E400, 401: E401},
+)
 async def create_receipt_category(
     title: str = Form(..., max_length=100, description="название услуги"),
     type: str = Form(DEFAULT_TYPE, max_length=20, description="income — поступление, expense — выплата"),
     tax_code: str = Form("", max_length=20, description="код операции, например 01"),
-    category: str = Form(DEFAULT_CATEGORY, max_length=20),
-    category_display: str = Form(DEFAULT_CATEGORY_DISPLAY, max_length=50),
-    amount: str = Form("", description="сумма: 1200000 или 1 234,56"),
-    date_value: str = Form("", alias="date", description="дата: ГГГГ-ММ-ДД или ДД.ММ.ГГГГ"),
-    description: str = Form(""),
+    description: str = Form("", description="описание услуги"),
     image: UploadFile | None = File(None, description="файл изображения"),
     video: UploadFile | None = File(None, description="файл короткого видео"),
     repo: Repository = Depends(get_repository),
     user: User = Depends(get_current_user),
 ):
-    """Добавление услуги (multipart/form-data): файлы image и video уходят в MinIO,
-    в БД сохраняются их сгенерированные латинские имена.
-
-    Метод создателя — нужна авторизация (cookie session_id), иначе 401.
-    Создатель услуги (creator, id_user) берётся из сессии, с клиента не
-    принимается. Создаётся не более одного черновика на пользователя: если
-    черновик уже есть, обновляется он. Некорректные сумма/дата -> 400 Bad
-    Request (до загрузки файлов).
-    """
+    """Добавление услуги с изображением и видео."""
     name = title.strip()
-    amount_value = _parse_amount(amount)      # 400 при мусоре
-    date_value_parsed = _parse_date(date_value)  # 400 при мусоре
     if not name:
         raise HTTPException(status_code=400)
 
@@ -288,6 +254,9 @@ async def create_receipt_category(
             creator=user.username,
             id_user=user.id_user,
             date_created=datetime.now(),
+            # legacy-колонки БД: в API и Swagger не показываются
+            category=DEFAULT_CATEGORY,
+            category_display=DEFAULT_CATEGORY_DISPLAY,
             image_url=DEFAULT_IMAGE_URL,
             video_url=DEFAULT_VIDEO_URL,
         )
@@ -296,10 +265,6 @@ async def create_receipt_category(
     receipt.type = type or DEFAULT_TYPE
     if tax_code.strip():
         receipt.tax_code = tax_code.strip()
-    receipt.category = category or DEFAULT_CATEGORY
-    receipt.category_display = category_display or DEFAULT_CATEGORY_DISPLAY
-    receipt.amount = amount_value
-    receipt.date = date_value_parsed
     receipt.description = description.strip() or None
 
     if image is not None and image.filename:
@@ -315,17 +280,19 @@ async def create_receipt_category(
     return await _one_out(repo, user, receipt)
 
 
-@router.put("/receipt_categories/publish", response_model=ReceiptOut)
+@router.put(
+    "/receipt_categories/publish",
+    response_model=ReceiptOut,
+    tags=["Услуги"],
+    summary="Опубликовать услугу",
+    responses={400: E400, 401: E401, 404: E404},
+)
 async def publish_receipt_category(
     payload: PublishIn | None = Body(None),
     repo: Repository = Depends(get_repository),
     user: User = Depends(get_current_user),
 ):
-    """Публикация: Черновик -> Опубликован, дата формирования проставляется
-    на бэкенде. Опубликовать можно только черновик, вернуть в черновик нельзя.
-
-    Метод создателя — нужна авторизация (cookie session_id), иначе 401.
-    """
+    """Публикация черновика."""
     fields = payload.model_dump(exclude_unset=True) if payload else {}
 
     if fields.get("id_receipt_category") is not None:
@@ -346,14 +313,6 @@ async def publish_receipt_category(
         receipt.type = fields["type"]
     if "tax_code" in fields:
         receipt.tax_code = (fields["tax_code"] or "").strip() or None
-    if "amount" in fields:
-        receipt.amount = (
-            Decimal(str(fields["amount"])).quantize(Decimal("0.01"))
-            if fields["amount"] is not None
-            else None
-        )
-    if "date" in fields:
-        receipt.date = fields["date"]
     if "description" in fields:
         receipt.description = fields["description"]
 
@@ -363,18 +322,19 @@ async def publish_receipt_category(
     return await _one_out(repo, user, receipt)
 
 
-@router.delete("/receipt_categories/{receipt_category_id}", response_model=ReceiptOut)
+@router.delete(
+    "/receipt_categories/{receipt_category_id}",
+    response_model=ReceiptOut,
+    tags=["Услуги"],
+    summary="Удалить услугу",
+    responses={401: E401, 403: E403, 404: E404},
+)
 async def delete_receipt_category(
     receipt_category_id: int,
     repo: Repository = Depends(get_repository),
     user: User = Depends(get_current_user),
 ):
-    """Удаление услуги: только мягкое (status = «Удален») и только своих услуг.
-
-    Метод создателя — нужна авторизация (cookie session_id), иначе 401.
-    Вместе со статусом на бэкенде проставляется системная дата завершения —
-    клиент её передавать не может.
-    """
+    """Мягкое удаление своей услуги."""
     receipt = await repo.get_receipt(receipt_category_id)
     if receipt is None or receipt.status == STATUS_DELETED:
         raise HTTPException(status_code=404)
@@ -387,7 +347,13 @@ async def delete_receipt_category(
     return await _one_out(repo, user, receipt)
 
 
-@router.post("/receipt_categories/{receipt_category_id}/like", response_model=ReceiptOut)
+@router.post(
+    "/receipt_categories/{receipt_category_id}/like",
+    response_model=ReceiptOut,
+    tags=["Услуги"],
+    summary="Лайк",
+    responses={400: E400, 401: E401, 404: E404},
+)
 async def like_receipt_category(
     receipt_category_id: int,
     payload: dict | None = Body(None, description='{"value": 1} — поставить лайк, {"value": 0} — снять'),
@@ -395,11 +361,7 @@ async def like_receipt_category(
     repo: Repository = Depends(get_repository),
     user: User = Depends(get_current_user),
 ):
-    """Лайк от текущего пользователя: value = 1 ставит лайк, value = 0 снимает.
-
-    Метод создателя — нужна авторизация (cookie session_id), иначе 401:
-    лайк всегда принадлежит пользователю из сессии.
-    Любое другое value — 400 Bad Request."""
+    """Поставить или снять лайк."""
     receipt = await repo.get_receipt(receipt_category_id)
     if receipt is None or receipt.status != STATUS_PUBLISHED:
         raise HTTPException(status_code=404)
@@ -426,66 +388,82 @@ async def like_receipt_category(
 
 # ---------------------------------------------------------------- домен «пользователь»
 
-@router.post("/users/register", response_model=UserOut, status_code=201, tags=["Пользователи"])
+@router.post(
+    "/users/register",
+    response_model=UserOut,
+    status_code=201,
+    tags=["Пользователи"],
+    summary="Регистрация",
+    responses={400: E400, 409: E409},
+)
 async def register_user(
     payload: UserIn,
     response: Response,
     repo: Repository = Depends(get_repository),
 ):
-    """Регистрация нового пользователя (аутентификация + автовход).
-
-    Логин и пароль проверяются на сервере: свободно — создаётся пользователь,
-    занято — 409 Conflict. Учётные данные с клиента не передаются.
-    После успешной регистрации сразу создаётся сессия в Redis, её
-    идентификатор возвращается в cookie session_id (HttpOnly) — вход уже
-    выполнен, методы создателя доступны без отдельного login.
-    """
+    """Регистрация пользователя и автоматический вход."""
     if await repo.get_user_by_login(payload.username) is not None:
         raise HTTPException(status_code=409)
 
-    user = await repo.create_user(payload.username, payload.password)
+    try:
+        user = await repo.create_user(payload.username, hash_password(payload.password))
+    except IntegrityError:
+        # гонка двух одновременных регистраций с одинаковым логином
+        await repo.db.rollback()
+        raise HTTPException(status_code=409)
+
     session_id = await sessions.create_session(user.id_user, user.username)
     _set_session_cookie(response, session_id)
     return UserOut(id_user=user.id_user, username=user.username)
 
 
-@router.post("/users/login", response_model=UserOut, tags=["Пользователи"])
+@router.post(
+    "/users/login",
+    response_model=UserOut,
+    tags=["Пользователи"],
+    summary="Вход",
+    responses={400: E400, 403: E403_PASSWORD, 404: E404},
+)
 async def login_user(
     payload: UserIn,
     response: Response,
     repo: Repository = Depends(get_repository),
 ):
-    """Аутентификация: проверка логина и пароля, открытие сессии.
-
-    Пользователь не найден — 404, неверный пароль — 403. При успехе в Redis
-    создаётся сессия (ключ session:<ид>, значение «id_user|username», TTL
-    24 часа), клиенту возвращается тот же JSON и cookie session_id (HttpOnly) —
-    этот cookie используется дальше в Swagger (кнопка Authorize) и в
-    Postman/Insomnia (заголовок Cookie: session_id=...).
-    """
+    """Проверка логина и пароля, создание сессии."""
     user = await repo.get_user_by_login(payload.username)
     if user is None:
         raise HTTPException(status_code=404)
-    if user.password != payload.password:
+
+    is_valid, needs_rehash = verify_password(payload.password, user.password)
+    if not is_valid:
         raise HTTPException(status_code=403)
+    if needs_rehash:
+        user.password = hash_password(payload.password)
+        await repo.save_user(user)
 
     session_id = await sessions.create_session(user.id_user, user.username)
     _set_session_cookie(response, session_id)
     return UserOut(id_user=user.id_user, username=user.username)
 
 
-@router.post("/users/logout", tags=["Пользователи"])
+@router.post(
+    "/users/logout",
+    tags=["Пользователи"],
+    summary="Выход",
+)
 async def logout_user(
     response: Response,
     session_id: str | None = Cookie(None, alias=settings.SESSION_COOKIE),
 ):
-    """Деавторизация: сессия удаляется из Redis, cookie — из ответа.
+    """Выход из системы.
 
-    После выхода методы создателя возвращают 401 Unauthorized. Повторный
-    вызов без cookie — не ошибка: 200 с пустым телом («уже вышли»).
-    Метод обязателен по методичке, в 10 запросов Postman-коллекции отчёта не входит.
+    С указанной сессией (cookie session_id) — завершается только она.
+    Без сессии (пусто) — завершаются все сессии всех пользователей.
     """
-    await sessions.delete_session(session_id)
+    if session_id:
+        await sessions.delete_session(session_id)
+    else:
+        await sessions.delete_all_sessions()
     response.delete_cookie(settings.SESSION_COOKIE)
     return {}
 

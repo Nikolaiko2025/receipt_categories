@@ -8,8 +8,6 @@ HTTP-запрос, валидирует данные и принимает би�
 поэтому такие ид сразу считаются ненайденными — иначе asyncpg вернёт
 ошибку 500 «value out of range for type integer».
 """
-from datetime import date
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,6 +42,13 @@ class Repository:
         await self.db.refresh(user)
         return user
 
+    async def save_user(self, user: User) -> User:
+        """Сохраняет изменения пользователя (например, перехешированный пароль)."""
+        self.db.add(user)
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+
     async def get_user_by_id(self, user_id: int) -> User | None:
         """Пользователь по идентификатору (восстановление из cookie-сессии)."""
         if not _valid_id(user_id):
@@ -57,12 +62,8 @@ class Repository:
         self,
         *,
         type: str | None = None,
-        category: str | None = None,
+        tax_code: str | None = None,
         title: str | None = None,
-        min_amount: float | None = None,
-        max_amount: float | None = None,
-        date_from: date | None = None,
-        date_to: date | None = None,
         expense: bool | None = None,
         mine: bool | None = None,
         user_id: int | None = None,
@@ -74,18 +75,10 @@ class Repository:
 
         if type:
             stmt = stmt.where(Receipt_categories.type == type)
-        if category:
-            stmt = stmt.where(Receipt_categories.category == category)
+        if tax_code:
+            stmt = stmt.where(Receipt_categories.tax_code == tax_code)
         if title:
             stmt = stmt.where(Receipt_categories.title.ilike(f"%{title}%"))
-        if min_amount is not None:
-            stmt = stmt.where(Receipt_categories.amount >= min_amount)
-        if max_amount is not None:
-            stmt = stmt.where(Receipt_categories.amount <= max_amount)
-        if date_from is not None:
-            stmt = stmt.where(Receipt_categories.date >= date_from)
-        if date_to is not None:
-            stmt = stmt.where(Receipt_categories.date <= date_to)
         if expense is True:
             # «Выплата» — по типу операции (income/expense), а не по знаку суммы
             stmt = stmt.where(Receipt_categories.type == "expense")

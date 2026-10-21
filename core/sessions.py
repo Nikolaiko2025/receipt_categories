@@ -9,8 +9,9 @@
 session_id (HttpOnly) методами /api/users/login и /api/users/register;
 на каждом запросе идентификатор читается из cookie и по нему из Redis
 восстанавливается пользователь (см. core.auth). Logout удаляет ключ из Redis
-и cookie из ответа. Сам клиент идентификатор сессии не придумывает и не
-подделывает: в Redis лежит только серверная половина данных.
+и cookie из ответа; logout без указанной сессии удаляет все сессии всех
+пользователей (delete_all_sessions). Сам клиент идентификатор сессии не
+придумывает и не подделывает: в Redis лежит только серверная половина данных.
 """
 import uuid
 
@@ -18,8 +19,12 @@ import redis.asyncio as aioredis
 
 from core.config import settings
 
-# один клиент Redis на приложение (соединение открывается лениво, при первом запросе)
-_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+# один клиент Redis на приложение (соединение открывается лениво, при первом запросе);
+# health_check_interval — клиент сам переподключается на простоях, чтобы не ловить
+# «Error while writing to socket» на первом же запросе после простоя
+_client = aioredis.from_url(
+    settings.REDIS_URL, decode_responses=True, health_check_interval=30
+)
 
 SESSION_PREFIX = "session:"
 
@@ -52,3 +57,15 @@ async def delete_session(session_id: str | None) -> None:
     """Удаляет сессию из Redis (метод logout); неизвестный идентификатор — не ошибка."""
     if session_id:
         await _client.delete(_key(session_id))
+
+
+async def delete_all_sessions() -> int:
+    """Удаляет все сессии всех пользователей (logout без указанной сессии).
+
+    Ключи ищутся по префиксу session:, чтобы не трогать остальные данные Redis.
+    Возвращает количество завершённых сессий.
+    """
+    keys = [key async for key in _client.scan_iter(match=f"{SESSION_PREFIX}*")]
+    if keys:
+        await _client.delete(*keys)
+    return len(keys)
