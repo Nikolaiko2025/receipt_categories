@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <title>Лента</title>
-        <link rel="stylesheet" href="/static/css/style.css?v=5">
+        <link rel="stylesheet" href="/static/css/style.css?v=9">
     </head>
     <body>
         <div class="app-container">
@@ -30,12 +30,15 @@
             <main class="main-context">
                 {% if receipt_categories %}
                     {% set rc = receipt_categories[0] %}
-                    <video class="video" src="{{ rc.video_url or default_video_url }}"
+                    {% set is_expense = rc.type == 'expense' %}
+                    <video class="video" src="{{ public_url(rc.video_url) or default_video_url }}"
                            onerror="this.onerror=null; this.src='{{ default_video_url }}'"
                            autoplay loop muted playsinline></video>
                     <div class="feed-meta">
-                        <span class="feed-category">{{ rc.category_display }}</span>
-                        <span class="feed-amount {% if rc.amount is not none and rc.amount >= 0 %}positive{% else %}negative{% endif %}">{% if rc.amount is not none %}{{ rc.amount|int }} ₽{% endif %}</span>
+                        <span class="feed-tax-code">Код {{ rc.tax_code or '—' }}</span>
+                        <span class="feed-type {{ 'expense' if is_expense else 'income' }}">
+                            {{ 'Выплата' if is_expense else 'Поступление' }}
+                        </span>
                     </div>
                     <div class="container-description1">
                     <div class="heart">

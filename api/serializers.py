@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 class ReceiptOut(BaseModel):
     id_receipt_category: int
     title: str
+    type: str | None = Field(None, description="income — поступление, expense — выплата")
+    tax_code: str | None = Field(None, description="код операции, например 01 или 02")
     amount: float | None = None
     description: str | None = None
     image_url: str
@@ -26,6 +28,9 @@ class UserIn(BaseModel):
 
 class PublishIn(BaseModel):
     id_receipt_category: int | None = None
+    # income — поступление, expense — выплата
+    type: str | None = Field(None, description="income — поступление, expense — выплата")
+    tax_code: str | None = Field(None, max_length=20, description="код операции, например 01")
     amount: float | None = None
     date: _date | None = None
     description: str | None = None

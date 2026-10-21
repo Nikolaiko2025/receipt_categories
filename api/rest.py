@@ -77,13 +77,15 @@ def _to_out(
 ) -> ReceiptOut:
     """Сборка единого JSON-формата услуги (набор полей всегда одинаковый).
 
-    type, category, category_display и date в ответ не входят — они скрыты
-    от клиента (данные есть в БД, по ним работает фильтрация).
+    category, category_display и date в ответ не входят — это legacy-поля
+    прежней версии схемы, в интерфейсе их заменяют type и tax_code.
     user = None — гость: is_creator = 0, liked = 0.
     """
     return ReceiptOut(
         id_receipt_category=receipt.id_receipt_category,
         title=receipt.title or "",
+        type=receipt.type,
+        tax_code=receipt.tax_code,
         amount=float(receipt.amount) if receipt.amount is not None else None,
         description=receipt.description,
         image_url=storage.public_url(receipt.image_url) or "",
@@ -162,7 +164,7 @@ async def list_receipt_categories(
     max_amount: float | None = Query(None, description="сумма до"),
     date_from: date | None = Query(None, description="дата операции от (ГГГГ-ММ-ДД)"),
     date_to: date | None = Query(None, description="дата операции до (ГГГГ-ММ-ДД)"),
-    expense: bool | None = Query(None, description="true — только выплаты (amount < 0)"),
+    expense: bool | None = Query(None, description="true — только выплаты (type = expense)"),
     mine: bool | None = Query(None, description="true — только услуги текущего пользователя (нужна авторизация)"),
     repo: Repository = Depends(get_repository),
     user: User | None = Depends(get_optional_user),
@@ -252,7 +254,8 @@ async def get_draft(
 @router.post("/receipt_categories", response_model=ReceiptOut, status_code=201)
 async def create_receipt_category(
     title: str = Form(..., max_length=100, description="название услуги"),
-    type: str = Form(DEFAULT_TYPE, max_length=20),
+    type: str = Form(DEFAULT_TYPE, max_length=20, description="income — поступление, expense — выплата"),
+    tax_code: str = Form("", max_length=20, description="код операции, например 01"),
     category: str = Form(DEFAULT_CATEGORY, max_length=20),
     category_display: str = Form(DEFAULT_CATEGORY_DISPLAY, max_length=50),
     amount: str = Form("", description="сумма: 1200000 или 1 234,56"),
@@ -291,6 +294,8 @@ async def create_receipt_category(
 
     receipt.title = name
     receipt.type = type or DEFAULT_TYPE
+    if tax_code.strip():
+        receipt.tax_code = tax_code.strip()
     receipt.category = category or DEFAULT_CATEGORY
     receipt.category_display = category_display or DEFAULT_CATEGORY_DISPLAY
     receipt.amount = amount_value
@@ -335,6 +340,12 @@ async def publish_receipt_category(
     if receipt.status != STATUS_DRAFT:
         raise HTTPException(status_code=404)
 
+    if "type" in fields and fields["type"] is not None:
+        if fields["type"] not in ("income", "expense"):
+            raise HTTPException(status_code=400)
+        receipt.type = fields["type"]
+    if "tax_code" in fields:
+        receipt.tax_code = (fields["tax_code"] or "").strip() or None
     if "amount" in fields:
         receipt.amount = (
             Decimal(str(fields["amount"])).quantize(Decimal("0.01"))

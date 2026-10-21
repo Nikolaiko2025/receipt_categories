@@ -109,7 +109,7 @@ top: 520px;
 display: flex;
 flex-direction: column;
 align-items: flex-end;
-gap: 2px;
+gap: 6px;
 text-align: right;
 font-family: 'Inter';
 background: rgba(217, 217, 217, 0.9);
@@ -117,38 +117,35 @@ border-radius: 30px;
 padding: 10px 14px;
 }
 
-.feed-amount{
+.feed-tax-code{
+max-width: 140px;
+box-sizing: border-box;
+background: #F3F4F6;
+padding: 4px 12px;
+border-radius: 12px;
 font-style: normal;
-font-weight: 700;
-font-size: 18px;
-line-height: 22px;
-max-width: 120px;
+font-weight: 600;
+font-size: 15px;
+line-height: 20px;
+color: #374151;
 white-space: nowrap;
 overflow: hidden;
 text-overflow: ellipsis;
 }
 
-.feed-amount.positive{
+.feed-type{
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 22px;
+}
+
+.feed-type.income{
 color: #22C55E;
 }
 
-.feed-amount.negative{
+.feed-type.expense{
 color: #EF4444;
-}
-
-.feed-category{
-max-width: 110px;
-box-sizing: border-box;
-background: #F3F4F6;
-padding: 3px 10px;
-border-radius: 12px;
-font-weight: 500;
-font-size: 15px;
-line-height: 18px;
-color: #6B7280;
-white-space: nowrap;
-overflow: hidden;
-text-overflow: ellipsis;
 }
 
 .nav-item-feed{
@@ -305,11 +302,10 @@ color: #6B7280;
 
 
 .toggle-container{
-position: absolute;
-width: 350px;
-height: 35px;
-left: 0px;
-top: 20px;
+position: relative;
+box-sizing: border-box;
+width: 100%;
+height: 42px;
 background: #F3F4F6;
 border-radius: 10px;
 }
@@ -317,23 +313,25 @@ border-radius: 10px;
 .type-radio{
 position: absolute;
 opacity: 0;
-width: 175px;
-height: 35px;
+width: 50%;
+height: 100%;
 margin: 0;
 cursor: pointer;
-left: 0px;
-top: 0px;
+left: 0;
+top: 0;
+z-index: 2;
 }
 
 #type-expense.type-radio{
-left: 175px;
+left: 50%;
 }
 
 .active-toggle{
 position: absolute;
-width: 175px;
-height: 35px;
-left: 4px;
+width: calc(50% - 6px);
+height: 34px;
+left: 3px;
+top: 4px;
 background: #2563EB;
 border-radius: 8px;
 transition: left 0.25s ease;
@@ -341,21 +339,21 @@ pointer-events: none;
 }
 
 #type-expense:checked ~ .active-toggle{
-left: 171px;
+left: calc(50% + 3px);
 }
 
 .span-1,
 .span-2{
 position: absolute;
-width: 175px;
-height: 35px;
-left: 0px;
-top: 0px;
+width: 50%;
+height: 100%;
+left: 0;
+top: 0;
 font-family: 'Inter';
 font-style: normal;
 font-weight: 600;
 font-size: 14px;
-line-height: 35px;
+line-height: 42px;
 text-align: center;
 cursor: pointer;
 transition: color 0.2s ease;
@@ -363,7 +361,7 @@ z-index: 1;
 }
 
 .span-2{
-left: 175px;
+left: 50%;
 }
 
 .span-1{
@@ -602,8 +600,9 @@ cursor: pointer;
 }
 
 .receipt-categories-grid{
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
     gap: 12px;
     padding: 12px;
     margin-top: 12px;
@@ -612,12 +611,20 @@ cursor: pointer;
 /* Карточка */
 .grid-card-wrap {
     position: relative;
-    flex: 0 1 calc(50% - 6px);
+    width: 100%;
     min-width: 0;
+    transition: transform 0.2s ease;
+}
+
+/* При наведении двигаем всю карточку вместе с кнопкой «Удалить» */
+.grid-card-wrap:hover {
+    transform: translateY(-4px);
 }
 
 .grid-card {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
     background: #FFFFFF;
     border-radius: 16px;
     overflow: hidden;
@@ -628,22 +635,23 @@ cursor: pointer;
     width: 100%;
 }
 
-/* Hover эффект */
+/* Hover эффект: тень у самой карточки, сдвиг — у обёртки (вместе с кнопкой) */
 .grid-card:hover {
-    transform: translateY(-4px);
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
 }
 
-/* Картинка */
+/* Фиксированные пропорции: все карточки в плитке одного размера */
 .card-image {
     width: 100%;
     aspect-ratio: 1 / 1;
+    flex: none;
     background: #F3F4F6;
     overflow: hidden;
     border-radius: 16px 16px 0 0;
 }
 
 .card-image img {
+    display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -662,12 +670,17 @@ cursor: pointer;
 
 /* Контент карточки */
 .card-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     padding: 10px 12px 12px;
 }
 
 .card-title {
     font-size: 13px;
+    line-height: 16px;
     font-weight: 600;
+    min-height: 32px;
     margin-bottom: 4px;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -687,33 +700,35 @@ cursor: pointer;
     overflow: hidden;
 }
 
-.card-amount {
-    font-size: 15px;
+.card-tax-code {
+    font-size: 14px;
     font-weight: 700;
     margin-bottom: 6px;
-}
-
-.card-amount.positive {
-    color: #22C55E;
-}
-
-.card-amount.negative {
-    color: #EF4444;
+    color: #374151;
 }
 
 .card-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-top: auto;
     font-size: 11px;
     color: #6B7280;
 }
 
-.card-category {
+.card-type {
     background: #F3F4F6;
     padding: 2px 8px;
     border-radius: 10px;
-    font-weight: 500;
+    font-weight: 600;
+}
+
+.card-type.income {
+    color: #16A34A;
+}
+
+.card-type.expense {
+    color: #DC2626;
 }
 
 .card-likes {
@@ -749,6 +764,7 @@ pointer-events: auto;
 /* Пустое состояние */
 .empty-state.full-width {
     grid-column: 1 / -1;
+    width: 100%;
 }
 
 .receipt-category-title{
@@ -763,20 +779,25 @@ font-weight: 700;
 font-size: 20px;
 line-height: 24px;
 color: #000000;
+/* длинное название не должно наезжать на описание — обрезаем в одну строку */
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
 }
 
 .receipt-category-description{
 position: absolute;
 width: 301px;
-height: 63px;
+height: 60px;
 left: 12px;
-top: 30px;
+top: 32px;
 font-family: 'Inter';
 font-style: italic;
 font-weight: 400;
 font-size: 14px;
 line-height: 17px;
-color: #000000;   
+color: #000000;
+overflow: hidden;
 }
 
 .show-more{
@@ -784,7 +805,7 @@ position: absolute;
 width: 120px;
 height: 17px;
 left: 12px;
-top: 80px;
+top: 96px;
 font-family: 'Inter';
 font-style: normal;
 font-weight: 500;
@@ -934,12 +955,14 @@ border-radius: 30px;
 }
 
 .drop-zone{
+    position: relative;
     box-sizing: border-box;
     flex: none;
     width: 100%;
-    height: 110px;
+    height: 150px;
     display: grid;
     place-items: center;
+    overflow: hidden;
     border: 1.5px dashed #6B7280;
     border-radius: 12px;
     cursor: pointer;
@@ -950,6 +973,35 @@ border-radius: 30px;
     line-height: 16px;
     text-align: center;
     color: #6B7280;
+}
+
+/* Изображение и видео по умолчанию (static/media), а также предпросмотр выбранного файла */
+.drop-media{
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #F3F4F6;
+    border-radius: 10px;
+}
+
+.drop-media-video{
+    background: #000000;
+}
+
+.drop-caption{
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    z-index: 2;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(17, 24, 39, 0.65);
+    color: #FFFFFF;
+    font-size: 11px;
+    line-height: 14px;
+    pointer-events: none;
 }
 
 .drop-zone input{

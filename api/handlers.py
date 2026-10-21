@@ -1,11 +1,11 @@
-from datetime import date, datetime
-from decimal import Decimal
-from sqlalchemy import or_, select
+from datetime import datetime
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from fastapi import APIRouter, Request, Depends, Form
+from fastapi import APIRouter, Request, Depends, File, Form, UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
+from core import storage
 from db.session import get_db, engine
 from core.current_user import get_current_user
 from models.receipt_categories import Receipt_categories
@@ -17,9 +17,24 @@ templates = Jinja2Templates(directory="templates")
 CURRENT_USER = "test_user"
 DEFAULT_IMAGE_URL = "/static/media/default.jpg"
 DEFAULT_VIDEO_URL = "/static/media/default.mp4"
+TYPES = ("income", "expense")
 
 templates.env.globals["default_image_url"] = DEFAULT_IMAGE_URL
 templates.env.globals["default_video_url"] = DEFAULT_VIDEO_URL
+# имя файла в MinIO -> публичный URL (старые пути до статики возвращаются как есть)
+templates.env.globals["public_url"] = storage.public_url
+
+
+async def _save_upload(upload: UploadFile | None, kind: str) -> str | None:
+    """Читает файл из формы, генерирует латинское имя и кладёт его в MinIO."""
+    if upload is None or not upload.filename:
+        return None
+    data = await upload.read()
+    if not data:
+        return None
+    name = storage.generate_name(upload.filename, upload.content_type or "", kind)
+    storage.upload(data, name, upload.content_type or "")
+    return name
 
 
 @router.get("/")
@@ -101,6 +116,8 @@ async def get_add(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/receipt_categories_add")
 async def post_add(
     title: str = Form(...),
+    image: UploadFile | None = File(None),
+    video: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_db),
 ):
     existing_result = await db.execute(
@@ -111,9 +128,16 @@ async def post_add(
     )
     existing_draft = existing_result.scalar_one_or_none()
 
+    image_name = await _save_upload(image, "image")
+    video_name = await _save_upload(video, "video")
+
     if existing_draft is not None:
         if title.strip():
             existing_draft.title = title.strip()
+        if image_name:
+            existing_draft.image_url = image_name
+        if video_name:
+            existing_draft.video_url = video_name
         await db.commit()
         return RedirectResponse("/receipt_categories_add", status_code=303)
 
@@ -124,8 +148,8 @@ async def post_add(
         category="debit",
         category_display="Дебиторка",
         status="Черновик",
-        image_url=DEFAULT_IMAGE_URL,
-        video_url=DEFAULT_VIDEO_URL,
+        image_url=image_name or DEFAULT_IMAGE_URL,
+        video_url=video_name or DEFAULT_VIDEO_URL,
         date_created=datetime.now(),
         creator=CURRENT_USER,
         id_user=current_user.id_user,
@@ -138,8 +162,8 @@ async def post_add(
 
 @router.post("/receipt_categories_publish")
 async def post_publish(
-    amount: str = Form(""),
-    date_value: str = Form("", alias="date"),
+    tax_code: str = Form(""),
+    type: str = Form("income"),
     description: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
@@ -155,10 +179,8 @@ async def post_publish(
     if draft is None:
         return RedirectResponse("/receipt_categories_add", status_code=303)
 
-    draft.amount = (
-        Decimal(amount.replace(" ", "").replace(",", ".")) if amount.strip() else None
-    )
-    draft.date = date.fromisoformat(date_value) if date_value.strip() else None
+    draft.tax_code = tax_code.strip() or None
+    draft.type = type if type in TYPES else "income"
     draft.description = description.strip() or None
     draft.status = "Опубликован"
     draft.date_formed = datetime.now()
@@ -169,23 +191,14 @@ async def post_publish(
 
 @router.get("/receipt_categories_grid")
 async def get_grid(request: Request, expense: bool = False, db: AsyncSession = Depends(get_db)):
-    """Плитка опубликованных чеков. Фильтр по сумме одной галочкой:
-    снята — Поступление (amount >= 0), отмечена — Выплата (amount < 0)."""
+    """Плитка опубликованных операций. Фильтр одной галочкой:
+    снята — Поступление (type = income), отмечена — Выплата (type = expense)."""
     stmt = (
         select(Receipt_categories)
         .options(selectinload(Receipt_categories.likes))
         .where(Receipt_categories.status == "Опубликован")
+        .where(Receipt_categories.type == ("expense" if expense else "income"))
     )
-
-    if expense:
-        stmt = stmt.where(
-            or_(
-                Receipt_categories.amount < 0,
-                Receipt_categories.amount.is_(None),
-            )
-        )
-    else:
-        stmt = stmt.where(Receipt_categories.amount >= 0)
 
     result = await db.execute(stmt)
     receipt_categories = result.scalars().all()

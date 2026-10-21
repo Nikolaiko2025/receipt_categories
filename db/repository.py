@@ -10,7 +10,7 @@ HTTP-запрос, валидирует данные и принимает би�
 """
 from datetime import date
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.constants import STATUS_DRAFT, STATUS_PUBLISHED
@@ -87,11 +87,10 @@ class Repository:
         if date_to is not None:
             stmt = stmt.where(Receipt_categories.date <= date_to)
         if expense is True:
-            stmt = stmt.where(
-                or_(Receipt_categories.amount < 0, Receipt_categories.amount.is_(None))
-            )
+            # «Выплата» — по типу операции (income/expense), а не по знаку суммы
+            stmt = stmt.where(Receipt_categories.type == "expense")
         elif expense is False:
-            stmt = stmt.where(Receipt_categories.amount >= 0)
+            stmt = stmt.where(Receipt_categories.type == "income")
         if mine is True and user_id is not None:
             stmt = stmt.where(Receipt_categories.id_user == user_id)
         elif mine is False and user_id is not None:

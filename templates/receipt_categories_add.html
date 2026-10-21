@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <title>Добавление</title>
-        <link rel="stylesheet" href="/static/css/style.css">
+        <link rel="stylesheet" href="/static/css/style.css?v=9">
     </head>
     <body>
         <div class="app-container">
@@ -33,34 +33,51 @@
                     {% if has_draft %}
                     <form action="/receipt_categories_publish" method="POST" class="add-form">
                         <div class="add-section">
-                            <p>Сумма (₽)</p>
-                            <input type="text" name="amount" value="{{ draft.amount if draft.amount is not none else '' }}" placeholder="Сумма">
-                            <p>Дата</p>
-                            <input type="date" name="date" value="{{ draft.date if draft.date else '' }}">
+                            <p>Код операции</p>
+                            <input type="text" name="tax_code" value="{{ draft.tax_code or '' }}"
+                                   maxlength="20" inputmode="numeric" placeholder="Например 01" required>
+                        </div>
+                        <div class="add-section">
+                            <p>Тип операции</p>
+                            <div class="toggle-container">
+                                <input class="type-radio" type="radio" id="type-income" name="type" value="income"
+                                       {% if draft.type != 'expense' %}checked{% endif %}>
+                                <input class="type-radio" type="radio" id="type-expense" name="type" value="expense"
+                                       {% if draft.type == 'expense' %}checked{% endif %}>
+                                <div class="active-toggle"></div>
+                                <label class="span-1" for="type-income">Поступление</label>
+                                <label class="span-2" for="type-expense">Выплата</label>
+                            </div>
+                        </div>
+                        <div class="add-section">
                             <p>Описание</p>
                             <textarea name="description" rows="4" placeholder="Описание">{{ draft.description or '' }}</textarea>
                         </div>
                         <button type="submit" class="btn">Опубликовать</button>
                     </form>
                     {% else %}
-                    <form action="/receipt_categories_add" method="POST" class="add-form">
+                    <form action="/receipt_categories_add" method="POST" enctype="multipart/form-data" class="add-form">
                         <div class="add-section">
                             <label class="drop-zone">
                                 <input type="file" id="image-input" name="image" accept="image/*">
-                                <span>📷<br>Изображение</span>
-                                <img id="image-preview" alt="Предпросмотр изображения"
-                                     style="display:none; box-sizing:border-box; width:100%; height:240px; object-fit:contain; padding:6px; background:#F3F4F6; border-radius:10px;">
+                                <img id="image-default" class="drop-media" src="{{ default_image_url }}"
+                                     alt="Изображение по умолчанию">
+                                <img id="image-preview" class="drop-media" alt="Предпросмотр изображения"
+                                     style="display:none;">
+                                <span class="drop-caption">Изображение</span>
                             </label>
                             <label class="drop-zone">
                                 <input type="file" id="video-input" name="video" accept="video/*">
-                                <span>🎥<br>Видео</span>
-                                <video id="video-preview" controls playsinline preload="metadata"
-                                       style="display:none; box-sizing:border-box; width:100%; height:220px; background:#000000; border-radius:10px;"></video>
+                                <video id="video-default" class="drop-media drop-media-video"
+                                       src="{{ default_video_url }}" autoplay loop muted playsinline></video>
+                                <video id="video-preview" class="drop-media drop-media-video" controls
+                                       playsinline preload="metadata" style="display:none;"></video>
+                                <span class="drop-caption">Видео</span>
                             </label>
                         </div>
                         <div class="add-section">
                             <p>Название</p>
-                            <input type="text" name="title" placeholder="Название операции">
+                            <input type="text" name="title" placeholder="Название операции" required>
                         </div>
                         <button type="submit" class="btn">Далее</button>
                     </form>
@@ -86,13 +103,14 @@
         </div>
 
         <script>
-            function bindFilePreview(inputId, previewId) {
+            // По умолчанию в зоне загрузки видно изображение/видео из папки media.
+            // Как только выбран свой файл — показываем его предпросмотр.
+            function bindFilePreview(inputId, defaultId, previewId) {
                 var input = document.getElementById(inputId);
+                var placeholder = document.getElementById(defaultId);
                 var preview = document.getElementById(previewId);
-                if (!input || !preview) return;
+                if (!input || !placeholder || !preview) return;
 
-                var zone = input.parentElement;          // label.drop-zone
-                var placeholder = zone ? zone.querySelector("span") : null;
                 var objectUrl = null;
 
                 // чтобы клики по управлению видео не открывали диалог выбора файла
@@ -100,11 +118,6 @@
                     preview.addEventListener("click", function (e) {
                         e.stopPropagation();
                     });
-                }
-
-                function showPlaceholder(show) {
-                    if (placeholder) placeholder.style.display = show ? "" : "none";
-                    if (zone) zone.style.height = show ? "" : "auto";
                 }
 
                 input.addEventListener("change", function () {
@@ -117,18 +130,18 @@
                         preview.style.display = "none";
                         preview.removeAttribute("src");
                         preview.removeAttribute("srcObject");
-                        showPlaceholder(true);
+                        placeholder.style.display = "";
                         return;
                     }
                     objectUrl = URL.createObjectURL(file);
                     preview.src = objectUrl;
                     preview.style.display = "block";
-                    showPlaceholder(false);
+                    placeholder.style.display = "none";
                 });
             }
 
-            bindFilePreview("image-input", "image-preview");
-            bindFilePreview("video-input", "video-preview");
+            bindFilePreview("image-input", "image-default", "image-preview");
+            bindFilePreview("video-input", "video-default", "video-preview");
         </script>
     </body>
 </html>
