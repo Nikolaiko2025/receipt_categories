@@ -15,11 +15,15 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "image"
     MINIO_PUBLIC_URL: str = "http://localhost:9000"
 
+    # Redis (пока не используется в коде, но задан в .env)
+    redis_url: str = "redis://localhost:6379/0"
+
     @property
     def DATABASE_URL(self) -> str:
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 settings = Settings()

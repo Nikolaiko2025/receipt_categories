@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <title>Добавление</title>
-        <link rel="stylesheet" href="/static/css/style.css">
+        <link rel="stylesheet" href="/static/css/style.css?v=9">
     </head>
     <body>
         <div class="app-container">
@@ -33,10 +33,22 @@
                     {% if has_draft %}
                     <form action="/receipt_categories_publish" method="POST" class="add-form">
                         <div class="add-section">
-                            <p>Сумма (₽)</p>
-                            <input type="text" name="amount" value="{{ draft.amount if draft.amount is not none else '' }}" placeholder="Сумма">
-                            <p>Дата</p>
-                            <input type="date" name="date" value="{{ draft.date if draft.date else '' }}">
+                            <p>Тип операции</p>
+                            <div class="type-toggle">
+                                <label class="type-option">
+                                    <input type="radio" name="type" value="income"
+                                           {% if draft.type != 'expense' %}checked{% endif %}>
+                                    <span>Поступление</span>
+                                </label>
+                                <label class="type-option">
+                                    <input type="radio" name="type" value="expense"
+                                           {% if draft.type == 'expense' %}checked{% endif %}>
+                                    <span>Выплата</span>
+                                </label>
+                            </div>
+                            <p>Код в операции</p>
+                            <input type="text" name="tax_code" maxlength="20"
+                                   value="{{ draft.tax_code or '' }}" placeholder="Код в операции">
                             <p>Описание</p>
                             <textarea name="description" rows="4" placeholder="Описание">{{ draft.description or '' }}</textarea>
                         </div>
@@ -47,13 +59,14 @@
                         <div class="add-section">
                             <label class="drop-zone">
                                 <input type="file" id="image-input" name="image" accept="image/*">
-                                <span>📷<br>Изображение</span>
+                                <img class="drop-zone-default" src="{{ default_image_url }}" alt="Изображение по умолчанию">
                                 <img id="image-preview" alt="Предпросмотр изображения"
                                      style="display:none; box-sizing:border-box; width:100%; height:240px; object-fit:contain; padding:6px; background:#F3F4F6; border-radius:10px;">
                             </label>
                             <label class="drop-zone">
                                 <input type="file" id="video-input" name="video" accept="video/*">
-                                <span>🎥<br>Видео</span>
+                                <video class="drop-zone-default" src="{{ default_video_url }}"
+                                       autoplay loop muted playsinline preload="metadata"></video>
                                 <video id="video-preview" controls playsinline preload="metadata"
                                        style="display:none; box-sizing:border-box; width:100%; height:220px; background:#000000; border-radius:10px;"></video>
                             </label>
@@ -92,7 +105,7 @@
                 if (!input || !preview) return;
 
                 var zone = input.parentElement;          // label.drop-zone
-                var placeholder = zone ? zone.querySelector("span") : null;
+                var placeholder = zone ? zone.querySelector(".drop-zone-default") : null;
                 var objectUrl = null;
 
                 // чтобы клики по управлению видео не открывали диалог выбора файла

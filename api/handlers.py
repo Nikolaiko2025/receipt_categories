@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import or_, select
+import random
+from sqlalchemy import or_, and_, select
 from sqlalchemy.orm import selectinload
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
@@ -138,11 +139,15 @@ async def post_add(
 
 @router.post("/receipt_categories_publish")
 async def post_publish(
-    amount: str = Form(""),
-    date_value: str = Form("", alias="date"),
+    type_value: str = Form("income", alias="type"),
+    tax_code: str = Form(""),
     description: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
+    """Публикация черновика: тип операции (поступление/выплата), код операции
+    и описание. Дата и сумма проставляются автоматически: дата — сегодняшняя,
+    сумма случайная в диапазоне 100 000…1 000 000 ₽ по модулю,
+    знак зависит от типа (поступление — плюс, выплата — минус)."""
     stmt = (
         select(Receipt_categories)
         .where(Receipt_categories.status == "Черновик")
@@ -155,11 +160,14 @@ async def post_publish(
     if draft is None:
         return RedirectResponse("/receipt_categories_add", status_code=303)
 
-    draft.amount = (
-        Decimal(amount.replace(" ", "").replace(",", ".")) if amount.strip() else None
-    )
-    draft.date = date.fromisoformat(date_value) if date_value.strip() else None
+    if type_value in ("income", "expense"):
+        draft.type = type_value
+    draft.tax_code = tax_code.strip()[:20] or None
     draft.description = description.strip() or None
+
+    sign = -1 if draft.type == "expense" else 1
+    draft.amount = Decimal(sign * random.randint(100_000, 1_000_000))
+    draft.date = date.today()
     draft.status = "Опубликован"
     draft.date_formed = datetime.now()
     await db.commit()
@@ -170,7 +178,8 @@ async def post_publish(
 @router.get("/receipt_categories_grid")
 async def get_grid(request: Request, expense: bool = False, db: AsyncSession = Depends(get_db)):
     """Плитка опубликованных чеков. Фильтр по сумме одной галочкой:
-    снята — Поступление (amount >= 0), отмечена — Выплата (amount < 0)."""
+    снята — Поступление, отмечена — Выплата. Если сумма не заполнена (новые
+    операции), тип берётся из поля type (поступление/выплата)."""
     stmt = (
         select(Receipt_categories)
         .options(selectinload(Receipt_categories.likes))
@@ -181,11 +190,22 @@ async def get_grid(request: Request, expense: bool = False, db: AsyncSession = D
         stmt = stmt.where(
             or_(
                 Receipt_categories.amount < 0,
-                Receipt_categories.amount.is_(None),
+                and_(
+                    Receipt_categories.amount.is_(None),
+                    Receipt_categories.type == "expense",
+                ),
             )
         )
     else:
-        stmt = stmt.where(Receipt_categories.amount >= 0)
+        stmt = stmt.where(
+            or_(
+                Receipt_categories.amount >= 0,
+                and_(
+                    Receipt_categories.amount.is_(None),
+                    Receipt_categories.type != "expense",
+                ),
+            )
+        )
 
     result = await db.execute(stmt)
     receipt_categories = result.scalars().all()

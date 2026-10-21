@@ -15,11 +15,12 @@
   * системные поля (ид, статус, создатель, даты) с клиента не принимаются —
     они вычисляются на бэкенде: пользователь берётся из функции-синглтона
     core.current_user, даты и статусы — из бизнес-логики;
-  * в JSON нет ни статуса услуги, ни отдельных сообщений об ошибках —
-    код состояния возвращает сам HTTP-ответ: 200, 201, 400, 403, 404, 405, 409.
+  * в JSON нет отдельных сообщений об ошибках — код состояния возвращает
+    сам HTTP-ответ: 200, 201, 400, 403, 404, 405, 409;
+  * поля запросов и ответов — строго по README: лишние поля не принимаются
+    и не показываются.
 """
-from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from datetime import datetime
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,25 +63,23 @@ def get_repository(db: AsyncSession = Depends(get_db)) -> Repository:
 def _to_out(
     receipt: Receipt_categories,
     user: User,
-    counts: dict[int, int],
     liked: set[int],
 ) -> ReceiptOut:
-    """Сборка единого JSON-формата услуги (набор полей всегда одинаковый).
+    """Сборка JSON услуги — строго поля из README, набор всегда одинаковый.
 
-    type, category, category_display и date в ответ не входят — они скрыты
-    от клиента (данные есть в БД, по ним работает фильтрация).
+    В ответ входят type — поступление или выплата, tax_code — код операции
+    и status. Категория, сумма, даты и счётчик лайков в ответ не входят —
+    они остались в БД: по ним работает фильтрация и страницы приложения.
     """
     return ReceiptOut(
         id_receipt_category=receipt.id_receipt_category,
         title=receipt.title or "",
-        amount=float(receipt.amount) if receipt.amount is not None else None,
+        type=receipt.type or "",
+        tax_code=receipt.tax_code,
         description=receipt.description,
         image_url=storage.public_url(receipt.image_url) or "",
         video_url=storage.public_url(receipt.video_url) or "",
-        date_created=receipt.date_created,
-        date_formed=receipt.date_formed,
-        date_completed=receipt.date_completed,
-        likes=counts.get(receipt.id_receipt_category, 0),
+        status=receipt.status or "",
         is_creator=1 if receipt.id_user == user.id_user else 0,
         liked=1 if receipt.id_receipt_category in liked else 0,
     )
@@ -89,15 +88,15 @@ def _to_out(
 async def _one_out(
     repo: Repository, user: User, receipt: Receipt_categories
 ) -> ReceiptOut:
-    counts, liked = await repo.likes_meta(user.id_user, [receipt])
-    return _to_out(receipt, user, counts, liked)
+    _counts, liked = await repo.likes_meta(user.id_user, [receipt])
+    return _to_out(receipt, user, liked)
 
 
 async def _many_out(
     repo: Repository, user: User, receipts: list[Receipt_categories]
 ) -> list[ReceiptOut]:
-    counts, liked = await repo.likes_meta(user.id_user, receipts)
-    return [_to_out(receipt, user, counts, liked) for receipt in receipts]
+    _counts, liked = await repo.likes_meta(user.id_user, receipts)
+    return [_to_out(receipt, user, liked) for receipt in receipts]
 
 
 async def _save_upload(upload_file: UploadFile, kind: str) -> str | None:
@@ -112,31 +111,23 @@ async def _save_upload(upload_file: UploadFile, kind: str) -> str | None:
     return name
 
 
-def _parse_amount(raw: str | None) -> Decimal | None:
-    """1200000 | 1 234,56 -> Decimal; пусто -> None; мусор -> 400 Bad Request."""
-    if raw is None or not raw.strip():
+def _blank_to_none(raw: str | None) -> str | None:
+    """Пустая строка или отсутствующий параметр — None: фильтр не применяется."""
+    if raw is None:
         return None
-    cleaned = raw.strip().replace("\u00a0", "").replace(" ", "").replace(",", ".")
-    try:
-        return Decimal(cleaned)
-    except InvalidOperation:
-        raise HTTPException(status_code=400)
+    return raw.strip() or None
 
 
-def _parse_date(raw: str | None) -> date | None:
-    """2026-10-07 | 07.10.2026 | 2026-10-07T12:00 -> date; пусто -> None; мусор -> 400."""
-    if raw is None or not raw.strip():
+def _parse_optional_bool(raw: str | None) -> bool | None:
+    """Пусто или отсутствует — None (без фильтра); true/1/yes/on — True;
+    false/0/no/off — False; иное значение — 400 Bad Request."""
+    value = (raw or "").strip().lower()
+    if value == "":
         return None
-    value = raw.strip()
-    for parser in (
-        lambda v: datetime.fromisoformat(v).date(),
-        lambda v: datetime.strptime(v, "%d.%m.%Y").date(),
-        lambda v: datetime.strptime(v, "%Y/%m/%d").date(),
-    ):
-        try:
-            return parser(value)
-        except ValueError:
-            continue
+    if value in {"true", "1", "yes", "on"}:
+        return True
+    if value in {"false", "0", "no", "off"}:
+        return False
     raise HTTPException(status_code=400)
 
 
@@ -145,70 +136,102 @@ def _parse_date(raw: str | None) -> date | None:
 @router.get("/receipt_categories", response_model=list[ReceiptOut])
 async def list_receipt_categories(
     type: str | None = Query(None, description="income — поступление, expense — выплата"),
-    category: str | None = Query(None, description="код категории: debit, sales, credit, salary, suppliers"),
     title: str | None = Query(None, description="поиск по названию (частичный, без учёта регистра)"),
-    min_amount: float | None = Query(None, description="сумма от"),
-    max_amount: float | None = Query(None, description="сумма до"),
-    date_from: date | None = Query(None, description="дата операции от (ГГГГ-ММ-ДД)"),
-    date_to: date | None = Query(None, description="дата операции до (ГГГГ-ММ-ДД)"),
-    expense: bool | None = Query(None, description="true — только выплаты (amount < 0)"),
-    mine: bool | None = Query(None, description="true — только услуги текущего пользователя"),
+    expense: str | None = Query(None, description="true — только выплаты, false — без выплат, пусто — без фильтра"),
+    mine: str | None = Query(None, description="true — только услуги текущего пользователя, пусто — без фильтра"),
     repo: Repository = Depends(get_repository),
     user: User = Depends(current_user),
 ):
-    """Список опубликованных услуг с фильтрацией на стороне БД.
+    """Список опубликованных услуг с фильтрацией на стороне БД — параметры как в README.
 
-    Признак is_creator = 1, если создатель услуги совпадает с текущим пользователем.
+    is_creator 0/1 — нужна ли кнопка удаления на плитке, liked 0/1 — лайкнута ли
+    услуга текущим пользователем. Пустое значение параметра — фильтр не применяется,
+    мусорное — 400 Bad Request.
     """
     receipts = await repo.list_receipts(
-        type=type,
-        category=category,
-        title=title,
-        min_amount=min_amount,
-        max_amount=max_amount,
-        date_from=date_from,
-        date_to=date_to,
-        expense=expense,
-        mine=mine,
+        type=_blank_to_none(type),
+        title=_blank_to_none(title),
+        expense=_parse_optional_bool(expense),
+        mine=_parse_optional_bool(mine),
         user_id=user.id_user,
     )
     return await _many_out(repo, user, receipts)
 
 
-@router.get("/receipt_categories/feed", response_model=ReceiptOut)
-async def feed(
-    repo: Repository = Depends(get_repository),
-    user: User = Depends(current_user),
-):
-    """Лента без указания ид: первая опубликованная услуга (LIMIT 1)."""
-    receipt = await repo.get_first_published()
-    if receipt is None:
-        raise HTTPException(status_code=404)
-    return await _one_out(repo, user, receipt)
+def _parse_next(raw: str | None) -> bool:
+    """Пусто или отсутствует — False; true/1/yes/on — True; false/0/no/off — False;
+    иное значение — 400 Bad Request."""
+    return _parse_optional_bool(raw) or False
 
 
-@router.get("/receipt_categories/feed/{receipt_category_id}", response_model=ReceiptOut)
-async def feed_by_id(
-    receipt_category_id: int,
-    next: bool = Query(False, description="true — следующая опубликованная услуга"),
-    repo: Repository = Depends(get_repository),
-    user: User = Depends(current_user),
-):
-    """Лента по ид. next=true — следующая опубликованная услуга (LIMIT 1);
-    несуществующий ид — 404, конец ленты — начинаем сначала."""
-    current = await repo.get_receipt(receipt_category_id)
+async def _feed_by_id(
+    repo: Repository, user: User, receipt_id: int, next_flag: bool
+) -> ReceiptOut:
+    """Лента по ид: услуга с этим ид; next=true — следующая опубликованная.
+    Несуществующий ид, черновик или удалённая услуга — 404, конец ленты — начинаем сначала."""
+    current = await repo.get_receipt(receipt_id)
     if current is None or current.status != STATUS_PUBLISHED:
         raise HTTPException(status_code=404)
 
-    if not next:
+    if not next_flag:
         return await _one_out(repo, user, current)
 
-    receipt = await repo.get_next_published(receipt_category_id)
+    receipt = await repo.get_next_published(receipt_id)
     if receipt is None:  # конец ленты — начинаем сначала
         receipt = await repo.get_first_published()
     if receipt is None:
         raise HTTPException(status_code=404)
     return await _one_out(repo, user, receipt)
+
+
+@router.get("/receipt_categories/feed", response_model=ReceiptOut)
+async def feed(
+    id_receipt_category: str | None = Query(
+        None,
+        description="ид услуги, число; пусто или без параметра — первая опубликованная услуга",
+    ),
+    next: str | None = Query(
+        None,
+        description="true — следующая опубликованная услуга после указанного ид",
+    ),
+    repo: Repository = Depends(get_repository),
+    user: User = Depends(current_user),
+):
+    """Лента: без параметров — первая опубликованная услуга (LIMIT 1);
+    по ид — услуга с этим ид; по ид и next=true — следующая опубликованная.
+    Второй вариант того же метода — ид в пути адреса: /feed/{id}?next=true."""
+    receipt_id: int | None = None
+    if id_receipt_category:  # "" или отсутствует — лента без ид
+        try:
+            receipt_id = int(id_receipt_category)
+        except ValueError:
+            raise HTTPException(status_code=400)
+
+    next_flag = _parse_next(next)
+
+    if receipt_id is None:  # лента без ид
+        receipt = await repo.get_first_published()
+        if receipt is None:
+            raise HTTPException(status_code=404)
+        return await _one_out(repo, user, receipt)
+
+    return await _feed_by_id(repo, user, receipt_id, next_flag)
+
+
+@router.get("/receipt_categories/feed/{receipt_category_id}", response_model=ReceiptOut)
+async def feed_by_path(
+    receipt_category_id: int,
+    next: str | None = Query(
+        None,
+        description="true — следующая опубликованная услуга после указанного ид",
+    ),
+    repo: Repository = Depends(get_repository),
+    user: User = Depends(current_user),
+):
+    """Лента по ид в пути адреса — второй вариант вызова того же метода:
+    next=true — следующая опубликованная услуга (LIMIT 1);
+    несуществующий ид — 404, конец ленты — начинаем сначала."""
+    return await _feed_by_id(repo, user, receipt_category_id, _parse_next(next))
 
 
 @router.get("/receipt_categories/draft", response_model=ReceiptOut)
@@ -226,26 +249,22 @@ async def get_draft(
 @router.post("/receipt_categories", response_model=ReceiptOut, status_code=201)
 async def create_receipt_category(
     title: str = Form(..., max_length=100, description="название услуги"),
-    type: str = Form(DEFAULT_TYPE, max_length=20),
-    category: str = Form(DEFAULT_CATEGORY, max_length=20),
-    category_display: str = Form(DEFAULT_CATEGORY_DISPLAY, max_length=50),
-    amount: str = Form("", description="сумма: 1200000 или 1 234,56"),
-    date_value: str = Form("", alias="date", description="дата: ГГГГ-ММ-ДД или ДД.ММ.ГГГГ"),
-    description: str = Form(""),
+    type: str = Form(DEFAULT_TYPE, max_length=20, description="income — поступление, expense — выплата"),
+    description: str = Form("", description="описание операции"),
     image: UploadFile | None = File(None, description="файл изображения"),
     video: UploadFile | None = File(None, description="файл короткого видео"),
     repo: Repository = Depends(get_repository),
     user: User = Depends(current_user),
 ):
-    """Добавление услуги (multipart/form-data): файлы image и video уходят в MinIO,
-    в БД сохраняются их сгенерированные латинские имена.
+    """Добавление услуги (multipart/form-data) — форма строго по README:
+    title обязательно, type, description, изображение — файл, видео — файл.
 
+    Файлы уходят в MinIO, в БД сохраняются их сгенерированные латинские имена.
     Создаётся не более одного черновика на пользователя: если черновик уже есть,
-    обновляется он. Некорректные сумма/дата -> 400 Bad Request (до загрузки файлов).
+    обновляется он. Сумма, дата, категория и статус с клиента не принимаются —
+    они проставляются на бэкенде.
     """
     name = title.strip()
-    amount_value = _parse_amount(amount)      # 400 при мусоре
-    date_value_parsed = _parse_date(date_value)  # 400 при мусоре
     if not name:
         raise HTTPException(status_code=400)
 
@@ -258,14 +277,12 @@ async def create_receipt_category(
             date_created=datetime.now(),
             image_url=DEFAULT_IMAGE_URL,
             video_url=DEFAULT_VIDEO_URL,
+            category=DEFAULT_CATEGORY,
+            category_display=DEFAULT_CATEGORY_DISPLAY,
         )
 
     receipt.title = name
     receipt.type = type or DEFAULT_TYPE
-    receipt.category = category or DEFAULT_CATEGORY
-    receipt.category_display = category_display or DEFAULT_CATEGORY_DISPLAY
-    receipt.amount = amount_value
-    receipt.date = date_value_parsed
     receipt.description = description.strip() or None
 
     if image is not None and image.filename:
@@ -288,7 +305,8 @@ async def publish_receipt_category(
     user: User = Depends(current_user),
 ):
     """Публикация: Черновик -> Опубликован, дата формирования проставляется
-    на бэкенде. Опубликовать можно только черновик, вернуть в черновик нельзя."""
+    на бэкенде. JSON необязательно: id_receipt_category, description — строго
+    по README. Опубликовать можно только черновик, вернуть в черновик нельзя."""
     fields = payload.model_dump(exclude_unset=True) if payload else {}
 
     if fields.get("id_receipt_category") is not None:
@@ -303,14 +321,6 @@ async def publish_receipt_category(
     if receipt.status != STATUS_DRAFT:
         raise HTTPException(status_code=404)
 
-    if "amount" in fields:
-        receipt.amount = (
-            Decimal(str(fields["amount"])).quantize(Decimal("0.01"))
-            if fields["amount"] is not None
-            else None
-        )
-    if "date" in fields:
-        receipt.date = fields["date"]
     if "description" in fields:
         receipt.description = fields["description"]
 
@@ -359,10 +369,7 @@ async def like_receipt_category(
 
     raw = value
     if raw is None and payload:
-        for key in ("value", "like", "liked"):
-            if key in payload:
-                raw = payload[key]
-                break
+        raw = payload.get("value")
     if raw is None:
         raw = 1
 
@@ -405,9 +412,8 @@ async def login_user(payload: UserIn, repo: Repository = Depends(get_repository)
 
 @router.post("/users/logout")
 async def logout_user() -> dict:
-    """Деавторизация — заглушка для 4-й лабораторной: токенов нет, тело пустое.
+    """Деавторизация — заглушка для 4-й лабораторной: токенов нет.
 
-    Метод обязателен по методичке, но в 10 запросов Postman-коллекции отчёта не входит.
-    """
+    Ответ — 200 и пустое тело {} (строго по README)."""
     return {}
 

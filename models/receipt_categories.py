@@ -11,6 +11,8 @@ class Receipt_categories(Base):
     type = Column(String(20), nullable=False)
     category = Column(String(20), nullable=False)
     category_display = Column(String(50), nullable=False)
+    # код операции: вводится пользователем в интерфейсе (колонка есть в БД)
+    tax_code = Column(String(20))
     amount = Column(Numeric(15, 2))
     date = Column(Date)
     description = Column(Text)
