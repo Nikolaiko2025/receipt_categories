@@ -1,22 +1,3 @@
-"""Аутентификация и авторизация веб-сервиса: сессии в Redis + cookie.
-
-Аутентификация (проверка логина/пароля) — методы домена «пользователь»
-/api/users/register и /api/users/login: после проверки учётных данных сервер
-создаёт сессию в Redis (core.sessions) и возвращает её идентификатор в
-cookie session_id (HttpOnly). Деавторизация — /api/users/logout: сессия
-удаляется из Redis, cookie — из ответа.
-
-Авторизация (кто зван работать с методом) — на каждом запросе:
-  * get_optional_user — чтение (список услуг, лента): без cookie или с
-    истёкшей сессией работает гость (user = None), данные отдаются,
-    is_creator = 0, лайки гостя не сохраняются;
-  * get_current_user — методы создателя (добавление, публикация, удаление,
-    лайк, черновик): нет валидной сессии -> 401 Unauthorized.
-
-APIKeyCookie (auto_error=False) — только документ: описывает cookie как
-схему безопасности в Swagger, поэтому у методов создателя появляется кнопка
-Authorize, а чтение остаётся открытым. Проверку ведёт сам get_current_user.
-"""
 from fastapi import Cookie, Depends, HTTPException
 from fastapi.security import APIKeyCookie
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,8 +8,7 @@ from db.repository import Repository
 from db.session import get_db
 from models.user import User
 
-# схема безопасности для OpenAPI/Swagger: cookie session_id (без авто-ошибки,
-# реальную проверку ведёт get_current_user)
+
 cookie_security = APIKeyCookie(
     name=settings.SESSION_COOKIE,
     description=(
